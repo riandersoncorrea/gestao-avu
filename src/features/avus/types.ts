@@ -13,6 +13,9 @@ export const AVU_STATUSES = [
 
 export type AvuStatus = (typeof AVU_STATUSES)[number]
 
+export const AVU_PRIORITIES = ['CRITICA', 'ALTA', 'MEDIA', 'BAIXA'] as const
+export type AvuPriority = (typeof AVU_PRIORITIES)[number]
+
 export interface AvuProfileRef {
   id: string
   fullName: string
@@ -34,6 +37,7 @@ export interface Avu {
   subcategoria: string | null
   nivelConfiancaIa: number | null
   status: AvuStatus
+  prioridade: AvuPriority
   responsavel: AvuProfileRef | null
   empresaExecutante: string | null
   fiscal: AvuProfileRef | null
@@ -41,6 +45,12 @@ export interface Avu {
   ordemManutencao: string | null
   createdAt: string
   updatedAt: string
+  /**
+   * Data da última transição de status (ou de criação, se nunca mudou).
+   * Só vem preenchida quando a AVU é carregada via `avu_planning_view`
+   * (features/planning) — null nas leituras normais de `avus`.
+   */
+  statusSince: string | null
 }
 
 export interface AvuFormValues {
@@ -60,6 +70,7 @@ export interface AvuFormValues {
   fiscalId: string
   notaSap: string
   ordemManutencao: string
+  prioridade: AvuPriority
 }
 
 export interface AvuFilters {
@@ -86,6 +97,17 @@ export const EMPTY_AVU_FILTERS: AvuFilters = {
   responsavelId: '',
   periodoInicio: '',
   periodoFim: '',
+}
+
+export interface AvuStatusHistoryEntry {
+  id: string
+  avuId: string
+  changedBy: string | null
+  changedByName: string
+  previousStatus: AvuStatus | null
+  newStatus: AvuStatus
+  comment: string | null
+  createdAt: string
 }
 
 export interface AvuComment {

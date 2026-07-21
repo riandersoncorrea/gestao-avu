@@ -1,9 +1,20 @@
 import { supabase } from '@/lib/supabase'
-import type { Avu, AvuAttachment, AvuAttachmentKind, AvuComment, AvuFilters, AvuFormValues, AvuProfileRef, AvuStatus } from './types'
+import type {
+  Avu,
+  AvuAttachment,
+  AvuAttachmentKind,
+  AvuComment,
+  AvuFilters,
+  AvuFormValues,
+  AvuPriority,
+  AvuProfileRef,
+  AvuStatus,
+  AvuStatusHistoryEntry,
+} from './types'
 
 const AVU_SELECT = `
   id, numero_avu, data_criacao, gerencia_responsavel, data_limite, projeto, local,
-  latitude, longitude, descricao, categoria, subcategoria, nivel_confianca_ia, status,
+  latitude, longitude, descricao, categoria, subcategoria, nivel_confianca_ia, status, prioridade,
   empresa_executante, nota_sap, ordem_manutencao, created_at, updated_at,
   emitente:profiles!avus_emitente_fkey(id, full_name),
   responsavel:profiles!avus_responsavel_fkey(id, full_name),
@@ -31,6 +42,7 @@ interface RawAvuRow {
   subcategoria: string | null
   nivel_confianca_ia: number | null
   status: AvuStatus
+  prioridade: AvuPriority
   empresa_executante: string | null
   nota_sap: string | null
   ordem_manutencao: string | null
@@ -63,6 +75,7 @@ function fromRow(row: RawAvuRow): Avu {
     subcategoria: row.subcategoria,
     nivelConfiancaIa: row.nivel_confianca_ia,
     status: row.status,
+    prioridade: row.prioridade,
     responsavel: toProfileRef(row.responsavel),
     empresaExecutante: row.empresa_executante,
     fiscal: toProfileRef(row.fiscal),
@@ -70,6 +83,7 @@ function fromRow(row: RawAvuRow): Avu {
     ordemManutencao: row.ordem_manutencao,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    statusSince: null,
   }
 }
 
@@ -105,6 +119,7 @@ function toInsertPayload(values: AvuFormValues) {
     fiscal: toNullableId(values.fiscalId),
     nota_sap: toNullableText(values.notaSap),
     ordem_manutencao: toNullableText(values.ordemManutencao),
+    prioridade: values.prioridade,
   }
 }
 
@@ -197,6 +212,58 @@ export async function reviewExecution(avuId: string, approved: boolean, note?: s
     p_note: note ?? null,
   })
   if (error) throw error
+}
+
+// ---------------------------------------------------------------------------
+// Histórico de status (avu_status_history) — fonte rica da timeline
+// ---------------------------------------------------------------------------
+
+interface RawStatusHistoryRow {
+  id: string
+  avu_id: string
+  changed_by: string | null
+  previous_status: AvuStatus | null
+  new_status: AvuStatus
+  comment: string | null
+  created_at: string
+  changed_by_profile: RawProfileRef | null
+}
+
+/** Data da última transição de status, ou null se a AVU nunca mudou de status. */
+export async function getStatusSince(avuId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('avu_status_history')
+    .select('created_at')
+    .eq('avu_id', avuId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw error
+  return data?.created_at ?? null
+}
+
+export async function listStatusHistory(avuId: string): Promise<AvuStatusHistoryEntry[]> {
+  const { data, error } = await supabase
+    .from('avu_status_history')
+    .select(
+      'id, avu_id, changed_by, previous_status, new_status, comment, created_at, changed_by_profile:profiles!avu_status_history_changed_by_fkey(id, full_name)',
+    )
+    .eq('avu_id', avuId)
+    .order('created_at', { ascending: true })
+
+  if (error) throw error
+
+  return (data as unknown as RawStatusHistoryRow[]).map((row) => ({
+    id: row.id,
+    avuId: row.avu_id,
+    changedBy: row.changed_by,
+    changedByName: row.changed_by_profile?.full_name ?? 'Sistema',
+    previousStatus: row.previous_status,
+    newStatus: row.new_status,
+    comment: row.comment,
+    createdAt: row.created_at,
+  }))
 }
 
 // ---------------------------------------------------------------------------

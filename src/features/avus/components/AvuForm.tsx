@@ -9,7 +9,8 @@ import { Button } from '@/components/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card'
 import { listProfileOptions } from '@/services/profileService'
 import { listDistinctValues } from '../avuService'
-import type { Avu, AvuFormValues } from '../types'
+import { priorityLabel } from './PriorityBadge'
+import { AVU_PRIORITIES, type Avu, type AvuFormValues } from '../types'
 
 const numberRangeMessage = 'Informe um número entre 0 e 100'
 
@@ -34,6 +35,7 @@ const avuFormSchema = z.object({
   fiscalId: z.string(),
   notaSap: z.string(),
   ordemManutencao: z.string(),
+  prioridade: z.enum(AVU_PRIORITIES),
 })
 
 export const EMPTY_AVU_FORM_VALUES: AvuFormValues = {
@@ -53,6 +55,7 @@ export const EMPTY_AVU_FORM_VALUES: AvuFormValues = {
   fiscalId: '',
   notaSap: '',
   ordemManutencao: '',
+  prioridade: 'MEDIA',
 }
 
 export function avuToFormValues(avu: Avu): AvuFormValues {
@@ -73,6 +76,7 @@ export function avuToFormValues(avu: Avu): AvuFormValues {
     fiscalId: avu.fiscal?.id ?? '',
     notaSap: avu.notaSap ?? '',
     ordemManutencao: avu.ordemManutencao ?? '',
+    prioridade: avu.prioridade,
   }
 }
 
@@ -142,6 +146,11 @@ export function AvuForm({ defaultValues = EMPTY_AVU_FORM_VALUES, onSubmit, isSub
             hint="Preenchido manualmente até a classificação automática existir."
             error={errors.nivelConfiancaIa?.message}
             {...register('nivelConfiancaIa')}
+          />
+          <Select
+            label="Prioridade"
+            options={AVU_PRIORITIES.map((value) => ({ value, label: priorityLabel(value) }))}
+            {...register('prioridade')}
           />
         </CardContent>
       </Card>

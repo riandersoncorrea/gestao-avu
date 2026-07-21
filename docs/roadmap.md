@@ -16,10 +16,9 @@ CRUD completo de AVUs (`supabase/migrations/0003_avus.sql`) com os 10 status do 
 
 **O que isso já cobre de sprints futuras**: o fluxo de "Contratada envia evidência → Fiscal aprova/reprova" (que estava previsto para as Sprints 5/8) já existe dentro do próprio detalhe da AVU. As próximas sprints de Fiscalização/Portal da contratada podem focar no que falta (checklists estruturados, área dedicada) em vez de reconstruir esse fluxo básico.
 
-## Sprint 3 — Planejamento
+## Sprint 3 — Fluxo operacional e Planejamento (concluída)
 
-- Cronograma e priorização de AVUs (`planning.manage`, perfil Planejamento).
-- Alocação de contratadas responsáveis.
+Máquina de estados reforçada no Postgres (`supabase/migrations/0004_workflow_and_planning.sql`): trigger `avus_validate_status_transition` bloqueia qualquer transição de `status` fora do grafo permitido (mesmo via `UPDATE` direto, não só pela RPC), com `avu_status_history` registrando ator/data/status anterior/novo/comentário — timeline do detalhe da AVU passou a mesclar isso com `audit_logs`. Nova RPC genérica `avu_transition_status` (ação de planejamento) para o caminho linear NOVO→...→CONCLUIDO, mantendo `avu_submit_evidence`/`avu_review_execution` (Sprint 2) como os únicos caminhos para as transições de Fiscal/Contratada. Adicionado `avus.prioridade` (enum) e indicador de risco calculado (`features/avus/risk.ts`, combina SLA + prioridade + tempo parado no status). Página de Planejamento reescrita com Kanban (11 colunas, incluindo a pipeline Nota SAP → OM → prazo derivada dos campos existentes, mais um catch-all "Vencido") e Tabela, alertas automáticos clicáveis, e filtros de prioridade/risco/coluna/prazo. Ver `docs/database.md` e `docs/testing.md`.
 
 ## Sprint 4 — GIS funcional
 

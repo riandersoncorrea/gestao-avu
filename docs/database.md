@@ -174,10 +174,53 @@ Bucket **`avu-attachments`** (privado). Convenção de path: `<avu_id>/<uuid>-<n
 ### Auditoria automática
 
 - `avus_audit_insert` (`after insert`) → `audit_logs` com ação `avu.created`.
-- `avus_audit_update` (`after update`) → `avu.status_changed` (com `from`/`to` no `metadata`) quando o status muda, `avu.updated` caso contrário.
-- As RPCs gravam suas próprias ações (`avu.evidence_submitted`, `avu.approved`, `avu.rejected`).
+- `avus_audit_update` (`after update`) → `avu.updated` quando um campo comum muda. **Desde a migration `0004`, mudança de `status` não é mais logada aqui** — isso virou responsabilidade de `avu_status_history` (ver abaixo), que tem tipagem melhor (status anterior/novo como enum, não JSON) e comentário.
 
 Isso é a "auditoria básica de alterações" pedida — automática, no banco, não depende do frontend chamar nada.
+
+## Migration `0004_workflow_and_planning.sql`
+
+Máquina de estados do fluxo operacional (NOVO → ... → CONCLUIDO) reforçada no Postgres, e o suporte de dados do módulo de Planejamento.
+
+### `prioridade`
+
+`create type avu_priority as enum ('CRITICA', 'ALTA', 'MEDIA', 'BAIXA')`; `avus.prioridade` (not null, default `MEDIA`).
+
+### Grafo de transições — `avu_status_transitions`
+
+Tabela de referência (leitura aberta a qualquer autenticado, sem escrita pelo client) com os pares `(from_status, to_status)` permitidos:
+
+```
+NOVO → TRIAGEM, CANCELADO
+TRIAGEM → PLANEJAMENTO, CANCELADO
+PLANEJAMENTO → PROGRAMADO, CANCELADO
+PROGRAMADO → EM_EXECUCAO, CANCELADO
+EM_EXECUCAO → AGUARDANDO_EVIDENCIAS, CANCELADO
+AGUARDANDO_EVIDENCIAS → AGUARDANDO_APROVACAO, CANCELADO
+AGUARDANDO_APROVACAO → CONCLUIDO, REPROVADO, CANCELADO
+REPROVADO → EM_EXECUCAO, CANCELADO
+CONCLUIDO, CANCELADO → (terminais, sem saída)
+```
+
+`CANCELADO` é alcançável de qualquer status ativo (decisão administrativa/de planejamento); `REPROVADO → EM_EXECUCAO` é o caminho de retrabalho depois de uma reprovação. `is_valid_avu_transition(from, to)` consulta essa tabela.
+
+### Validação reforçada no banco — não só no frontend
+
+Trigger **`avus_validate_status_transition`** (`before update` em `avus`, só quando `status` muda): `is_admin()` bypassa; qualquer outro usuário só consegue mudar o status se `is_valid_avu_transition(old.status, new.status)` for verdadeiro — senão, `raise exception`. Isso vale igualmente para a RPC genérica de transição, para `avu_submit_evidence`/`avu_review_execution` (Sprint 2) e para um `UPDATE` direto — não tem como pular etapa nem pelo cliente Supabase direto.
+
+### `avu_status_history` — histórico rico
+
+`id, avu_id, changed_by, previous_status, new_status, comment, created_at`. RLS: leitura via `can_view_avu(avu_id)`; **sem policy de escrita para o client** — só o trigger `avus_record_status_history` (`after update`, `security definer`) grava, lendo o comentário de uma variável de sessão (`current_setting('avu.transition_comment', true)`) que a RPC/UPDATE seta antes de mudar o status. Isso evita duplicar a lógica de inserção em cada RPC.
+
+### RPC `avu_transition_status(p_avu_id, p_new_status, p_comment)`
+
+Autorização: `is_admin()` ou `has_permission('avus.create')` ou (`has_role('planejamento')` e `has_permission('planning.manage')`). **Para quem não é admin, rejeita explicitamente `AGUARDANDO_APROVACAO`/`CONCLUIDO`/`REPROVADO` como destino** — essas transições continuam reservadas a `avu_submit_evidence` (Contratada) e `avu_review_execution` (Fiscal), preservando a separação de responsabilidades da Sprint 2. Admin pode usar esta RPC (ou um `UPDATE` direto) para qualquer transição.
+
+### `avu_planning_view`
+
+`avus.*` + `status_since` (data da última linha em `avu_status_history` para aquela AVU, com fallback para `avus.created_at` quando não há histórico). Criada com `security_invoker = true` para herdar a RLS de `avus`/`avu_status_history` de quem consulta, não do dono da view. Usada pelo Kanban/Tabela de Planejamento para evitar N+1 queries calculando "tempo parado" por AVU.
+
+> **Nota de implementação**: o frontend não usa embed de FK do PostgREST (`profiles!avus_fiscal_fkey(...)`) contra esta view — não é garantido que o PostgREST detecte relacionamentos de FK através de uma view. `planningService.ts` resolve nomes de emitente/responsável/fiscal com um mapa de perfis carregado à parte.
 
 ## Convenções para próximas migrations
 
@@ -190,7 +233,7 @@ Isso é a "auditoria básica de alterações" pedida — automática, no banco, 
 
 O projeto já tem um Supabase real configurado em `.env` (ver `.env.example`), mas as migrations **não são aplicadas automaticamente** — não há credenciais de banco (senha/`service_role key`) neste ambiente, e não devem ser coladas em chat por segurança. Aplique manualmente, na ordem, com uma das duas opções:
 
-**Opção 1 — SQL Editor do painel Supabase** (mais simples): cole o conteúdo de `supabase/migrations/0001_init.sql` e rode; depois `0002_rbac_and_invites.sql`; depois `0003_avus.sql` — nessa ordem.
+**Opção 1 — SQL Editor do painel Supabase** (mais simples): cole o conteúdo de `supabase/migrations/0001_init.sql` e rode; depois `0002_rbac_and_invites.sql`; depois `0003_avus.sql`; depois `0004_workflow_and_planning.sql` — nessa ordem.
 
 **Opção 2 — Supabase CLI** (via `npx`, sem instalação global):
 

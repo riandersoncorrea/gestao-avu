@@ -11,7 +11,7 @@ Duas camadas de teste, porque autorização aqui nunca depende só do frontend:
 npm run test
 ```
 
-55 testes em 4 arquivos.
+103 testes em 7 arquivos.
 
 ### `src/features/auth/permissions.test.ts`
 
@@ -34,6 +34,10 @@ O mesmo arquivo ganhou (Sprint 2) `RequirePermission — criação de AVU (avus.
 ### `src/features/avus/sla.test.ts` e `src/features/avus/permissions.test.ts` (Sprint 2)
 
 `sla.ts` (`computeSlaStatus`/`daysUntilDue`/`daysOverdue`) testado com datas fixas (`REFERENCE`), cobrindo os 4 indicadores pedidos (no prazo, próximo do vencimento, vencido, encerrado) — inclusive a regra de status terminal sempre virar "encerrado" mesmo com data vencida. `permissions.ts` (`canWriteAvuRelated`) testa a mesma matriz de "quem pode escrever" usada na UI para esconder o formulário de comentário do Leitor.
+
+### `src/features/planning/transitions.test.ts`, `kanbanColumn.test.ts` e `src/features/avus/risk.test.ts` (Sprint 3)
+
+`transitions.ts` testa o grafo inteiro espelhado de `avu_status_transitions`: cada passo do caminho feliz (`NOVO→TRIAGEM→...→CONCLUIDO`), `CANCELADO` alcançável de qualquer status ativo, `REPROVADO→EM_EXECUCAO` (retrabalho), transições que pulam etapa (ex.: `NOVO→CONCLUIDO`) devolvendo `false`, e que `getPlanningNextStatuses` exclui os alvos reservados a Fiscal/Contratada (`AGUARDANDO_APROVACAO`/`CONCLUIDO`/`REPROVADO`, exceto `CANCELADO` que continua liberado). `kanbanColumn.ts` testa as 11 colunas: as 5 derivadas de nota/OM/prazo, as 4 de status direto, `VENCIDO` sobrepondo qualquer coluna quando atrasado (menos `CONCLUIDO`), e `CANCELADO`/`REPROVADO` fora do quadro (`null`). `risk.ts` testa a matriz SLA×prioridade×tempo parado nos 4 níveis e a regra de status terminal sempre "Baixo".
 
 ## Verificação manual de RLS (SQL Editor do Supabase)
 
@@ -186,3 +190,67 @@ rollback;
 | Segurança Empresarial / Planejamento | todas | ✅ (só Segurança Empresarial) | ❌ | ❌ |
 | Leitor | todas | ❌ | ❌ | ❌ |
 | Admin | todas | ✅ | ✅ | ✅ |
+
+## Verificação manual de transições de status (Sprint 3)
+
+Pré-requisito: pelo menos uma AVU de teste e um usuário Fiscal (pode reaproveitar o script da seção anterior). Todos os blocos usam `rollback` — seguro em produção.
+
+```sql
+-- 1) Pular etapa deve FALHAR mesmo com UPDATE direto (não só pela RPC) — usando o próprio
+-- usuário admin/postgres do SQL Editor, sem impersonar ninguém: o trigger vale para qualquer role.
+begin;
+update public.avus set status = 'CONCLUIDO'
+where id = (select id from public.avus where status = 'NOVO' limit 1);
+-- ↑ deve FALHAR: ERROR "Transição de status inválida: NOVO → CONCLUIDO" (a menos que a sessão seja admin)
+rollback;
+```
+
+```sql
+-- 2) Fiscal não pode usar a RPC genérica de planejamento (não tem avus.create/planning.manage).
+begin;
+select set_config('request.jwt.claims', json_build_object('sub', '<ID_DO_FISCAL>', 'role', 'authenticated')::text, true);
+set local role authenticated;
+select public.avu_transition_status((select id from public.avus where status = 'NOVO' limit 1), 'TRIAGEM', null);
+-- ↑ deve FALHAR: "Você não tem permissão para alterar o status desta AVU"
+rollback;
+```
+
+```sql
+-- 3) Segurança Empresarial/Planejamento não pode usar a RPC genérica para os alvos
+-- reservados a Fiscal/Contratada (mesmo tendo avus.create/planning.manage).
+begin;
+select set_config('request.jwt.claims', json_build_object('sub', '<ID_SEGURANCA_EMPRESARIAL>', 'role', 'authenticated')::text, true);
+set local role authenticated;
+select public.avu_transition_status(
+  (select id from public.avus where status = 'AGUARDANDO_EVIDENCIAS' limit 1),
+  'AGUARDANDO_APROVACAO',
+  null
+);
+-- ↑ deve FALHAR: "Use avu_submit_evidence/avu_review_execution para esta transição"
+rollback;
+```
+
+```sql
+-- 4) Transição válida pela RPC genérica funciona e grava em avu_status_history com comentário.
+begin;
+select set_config('request.jwt.claims', json_build_object('sub', '<ID_SEGURANCA_EMPRESARIAL>', 'role', 'authenticated')::text, true);
+set local role authenticated;
+select public.avu_transition_status(
+  (select id from public.avus where status = 'NOVO' limit 1),
+  'TRIAGEM',
+  'movendo para triagem — teste'
+);
+select previous_status, new_status, comment from public.avu_status_history order by created_at desc limit 1;
+-- ↑ deve mostrar previous_status=NOVO, new_status=TRIAGEM, comment='movendo para triagem — teste'
+rollback;
+```
+
+### Checklist esperado — transições
+
+| Cenário | Resultado esperado |
+|---|---|
+| `UPDATE` direto pulando etapa (ex.: NOVO → CONCLUIDO) | ❌ erro do trigger, para qualquer perfil não-admin |
+| Fiscal chamando `avu_transition_status` | ❌ erro (sem `avus.create`/`planning.manage`) |
+| Segurança Empresarial/Planejamento chamando `avu_transition_status` para `AGUARDANDO_APROVACAO`/`CONCLUIDO`/`REPROVADO` | ❌ erro (reservado às RPCs de Fiscal/Contratada) |
+| Segurança Empresarial/Planejamento chamando `avu_transition_status` para uma transição válida do caminho de planejamento | ✅ sucesso, registrado em `avu_status_history` com comentário |
+| Admin | ✅ qualquer transição, inclusive pulando etapas (bypass do trigger) |

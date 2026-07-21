@@ -13,14 +13,18 @@ import { Textarea } from '@/components/Textarea'
 import { useToast } from '@/components/Toast'
 import { useDisclosure } from '@/hooks/useDisclosure'
 import { useAuth } from '@/features/auth/AuthContext'
-import { deleteAvu, getAvuById, reviewExecution, submitEvidence } from '@/features/avus/avuService'
+import { deleteAvu, getAvuById, getStatusSince, reviewExecution, submitEvidence } from '@/features/avus/avuService'
 import { AvuStatusBadge } from '@/features/avus/components/AvuStatusBadge'
 import { SlaBadge } from '@/features/avus/components/SlaBadge'
+import { PriorityBadge } from '@/features/avus/components/PriorityBadge'
+import { RiskBadge } from '@/features/avus/components/RiskBadge'
 import { AvuLocationMap } from '@/features/avus/components/AvuLocationMap'
 import { AvuAttachments } from '@/features/avus/components/AvuAttachments'
 import { AvuTimeline } from '@/features/avus/components/AvuTimeline'
 import { AvuComments } from '@/features/avus/components/AvuComments'
 import { computeSlaStatus } from '@/features/avus/sla'
+import { StatusTransitionControl } from '@/features/planning/components/StatusTransitionControl'
+import { getPlanningNextStatuses } from '@/features/planning/transitions'
 import { formatDate, formatDateTime } from '@/utils/format'
 import { ROUTES } from '@/lib/routes'
 
@@ -52,10 +56,13 @@ export function AvuDetailPage() {
   const evidenceDialog = useDisclosure()
 
   const avuQuery = useQuery({ queryKey: ['avus', id], queryFn: () => getAvuById(id!) })
+  const statusSinceQuery = useQuery({ queryKey: ['avus', id, 'status-since'], queryFn: () => getStatusSince(id!) })
 
   function invalidateAvu() {
     queryClient.invalidateQueries({ queryKey: ['avus', id] })
-    queryClient.invalidateQueries({ queryKey: ['avus', id, 'timeline'] })
+    queryClient.invalidateQueries({ queryKey: ['avus', id, 'audit-logs'] })
+    queryClient.invalidateQueries({ queryKey: ['avus', id, 'status-history'] })
+    queryClient.invalidateQueries({ queryKey: ['avus', id, 'status-since'] })
     queryClient.invalidateQueries({ queryKey: ['avus', 'list'] })
   }
 
@@ -98,12 +105,14 @@ export function AvuDetailPage() {
 
   const avu = avuQuery.data
   const sla = computeSlaStatus(avu.dataLimite, avu.status)
+  const avuWithStatusSince = { ...avu, statusSince: statusSinceQuery.data ?? avu.createdAt }
 
   const canEdit =
     isAdmin || hasPermission('avus.create') || (roles.includes('planejamento') && hasPermission('planning.manage'))
   const canReview = (isAdmin || (roles.includes('fiscal') && avu.fiscal?.id === user?.id)) && avu.status === 'AGUARDANDO_APROVACAO'
   const canSubmitEvidence =
     roles.includes('contratada') && ['EM_EXECUCAO', 'AGUARDANDO_EVIDENCIAS'].includes(avu.status)
+  const canTransitionStatus = canEdit && getPlanningNextStatuses(avu.status).length > 0
 
   return (
     <div>
@@ -131,6 +140,8 @@ export function AvuDetailPage() {
       <div className="mb-6 flex flex-wrap gap-2">
         <AvuStatusBadge status={avu.status} />
         <SlaBadge dataLimite={avu.dataLimite} status={avu.status} />
+        <PriorityBadge prioridade={avu.prioridade} />
+        <RiskBadge avu={avuWithStatusSince} />
       </div>
 
       <Tabs className="mb-4" tabs={TABS} activeKey={tab} onChange={(key) => setTab(key as TabKey)} />
@@ -159,6 +170,14 @@ export function AvuDetailPage() {
               <Field label="Empresa executante" value={avu.empresaExecutante} />
             </CardContent>
           </Card>
+
+          {canTransitionStatus && (
+            <Card>
+              <CardContent>
+                <StatusTransitionControl avu={avu} onChanged={invalidateAvu} />
+              </CardContent>
+            </Card>
+          )}
 
           {canReview && (
             <Card>
@@ -215,6 +234,7 @@ export function AvuDetailPage() {
             />
             <Field label="Nota SAP" value={avu.notaSap} />
             <Field label="Ordem de manutenção" value={avu.ordemManutencao} />
+            <Field label="Status desde" value={formatDateTime(avuWithStatusSince.statusSince)} />
             <Field label="Criada em" value={formatDateTime(avu.createdAt)} />
             <Field label="Última atualização" value={formatDateTime(avu.updatedAt)} />
           </CardContent>

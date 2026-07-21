@@ -24,22 +24,28 @@ Máquina de estados reforçada no Postgres (`supabase/migrations/0004_workflow_a
 
 Área dedicada e simplificada, fora do `MainLayout` corporativo (`src/layouts/PortalLayout.tsx`, rotas `/portal`), antecipada desta posição do roadmap (era a Sprint 8) porque o pedido do usuário veio explícito. Usuário cujo único papel é `contratada` é redirecionado automaticamente para lá; admin acessa ambas as áreas. Dashboard com os 6 indicadores pedidos (`features/contractors/portalService.ts`), lista de AVUs da própria empresa, e — a peça que faltava desde a Sprint 2 — envio real de evidências (fotos/vídeos/documentos) com observações, data de execução, equipe, equipamentos e captura de GPS (`supabase/migrations/0005_contractor_portal.sql`, tabela `avu_evidences`, bucket `avu-evidences`). `avu_submit_evidence` passa a exigir ao menos uma evidência anexada antes de transicionar para `AGUARDANDO_APROVACAO`. Nova aba "Evidências" no detalhe geral da AVU dá ao Fiscal o contexto que faltava para aprovar/reprovar. Ver `docs/database.md` e `docs/testing.md`.
 
-## Sprint 5 — GIS funcional
+## Sprint 5 — Fiscalização (concluída)
+
+Tela dedicada de análise do Fiscal (`pages/InspectionsPage.tsx` — fila por bucket — e `pages/InspectionReviewPage.tsx` — tela de decisão), substituindo o card simples "Revisão de execução" do detalhe da AVU (Sprint 2). Três decisões (aprovar/reprovar/solicitar complementação de evidências) via nova RPC `avu_review_evidence` (`supabase/migrations/0006_fiscalizacao.sql`), com uma diferença importante: **reprovar manda a AVU direto para `EM_EXECUCAO`**, não para o status `REPROVADO` (pedido explícito) — por isso o bucket "Reprovados" da fila usa a última decisão registrada em `avu_approvals` (nova tabela de auditoria dedicada), não o status ao vivo. Comparação visual Antes (`avu_attachments`, Sprint 2) x Depois (`avu_evidences`, Sprint 4) lado a lado, reaproveitando os componentes já existentes — sem código novo de preview. Notificações in-app reais (`notifications`, fan-out para Contratada/Planejamento/Segurança Empresarial a cada decisão) substituem o sino decorativo do `Header` desde a Sprint 0. Ver `docs/database.md` e `docs/testing.md`.
+
+**Bug de segurança encontrado e corrigido na verificação desta sprint**: a checagem de autorização `has_role('fiscal') and v_avu.fiscal = auth.uid()` dentro de um `if not (...)` deixava passar qualquer Fiscal quando a AVU não tinha fiscal atribuído (`fiscal is null`), por causa da lógica de três valores do PL/pgSQL (`false or null` = `null`, e `if null` não dispara `raise exception`). Corrigido com `v_avu.fiscal is not null and ...` explícito.
+
+## Sprint 6 — GIS funcional
 
 - Camada vetorial com **todas** as AVUs georreferenciadas sobre o `BaseMap` (hoje o mapa só plota uma AVU por vez, na aba "Localização" do detalhe).
 - Definição do provedor de tiles definitivo (avaliar dados SIG corporativos da Vale vs. provedor externo tipo MapTiler).
 
-## Sprint 6 — Fiscalização (checklists)
+## Sprint 7 — Fiscalização (checklists estruturados)
 
-- Checklists estruturados de campo (itens de verificação, não só o par aprovar/reprovar já existente).
+- Checklists estruturados de campo (itens de verificação, além do par aprovar/reprovar/complementação já existente desde a Sprint 5).
 - Ler evidências (`avu_evidences`, Sprint 4, e `avu_attachments`, Sprint 2) com apoio de OCR/IA no futuro (`features/ai`).
 
-## Sprint 7 — Importações
+## Sprint 8 — Importações
 
 - Importação de planilhas/dados externos.
 - Primeiro rascunho de integração SAP PM (`features/sap`, `services/`) — os campos `nota_sap`/`ordem_manutencao` já existem em `avus`.
 
-## Sprint 8 — Relatórios / PDF
+## Sprint 9 — Relatórios / PDF
 
 - Escolher e implementar a geração de PDF (`@react-pdf/renderer` vs. Edge Function + Puppeteer — ver `docs/architecture.md`).
 - Exportação de laudos de fiscalização e relatórios gerenciais a partir dos dados de `avus`/`audit_logs` já existentes.

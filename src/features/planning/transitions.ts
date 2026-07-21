@@ -12,18 +12,26 @@ export const STATUS_TRANSITIONS: Record<AvuStatus, AvuStatus[]> = {
   PROGRAMADO: ['EM_EXECUCAO', 'CANCELADO'],
   EM_EXECUCAO: ['AGUARDANDO_EVIDENCIAS', 'AGUARDANDO_APROVACAO', 'CANCELADO'],
   AGUARDANDO_EVIDENCIAS: ['AGUARDANDO_APROVACAO', 'CANCELADO'],
-  AGUARDANDO_APROVACAO: ['CONCLUIDO', 'REPROVADO', 'CANCELADO'],
+  AGUARDANDO_APROVACAO: ['CONCLUIDO', 'REPROVADO', 'EM_EXECUCAO', 'AGUARDANDO_EVIDENCIAS', 'CANCELADO'],
   REPROVADO: ['EM_EXECUCAO', 'CANCELADO'],
   CONCLUIDO: [],
   CANCELADO: [],
 }
 
 /**
- * Transições reservadas às RPCs de Fiscal/Contratada (avu_review_execution/avu_submit_evidence).
+ * Transições reservadas às RPCs de Fiscal/Contratada (avu_review_evidence/avu_submit_evidence).
  * A RPC genérica avu_transition_status rejeita esses alvos para quem não é admin — a UI
  * usa isto para não oferecer a opção de "avançar status" genérica para esses destinos.
  */
 export const RESERVED_TRANSITION_TARGETS: AvuStatus[] = ['AGUARDANDO_APROVACAO', 'CONCLUIDO', 'REPROVADO']
+
+/**
+ * EM_EXECUCAO e AGUARDANDO_EVIDENCIAS são destinos normais do planejamento vindos de OUTROS
+ * status (ex.: PROGRAMADO→EM_EXECUCAO), mas quando a origem é AGUARDANDO_APROVACAO eles só
+ * podem ser decididos pelo Fiscal (reprovar/solicitar complementação) — `avu_review_evidence`,
+ * não a RPC genérica de planejamento.
+ */
+const RESERVED_FROM_AGUARDANDO_APROVACAO: AvuStatus[] = ['EM_EXECUCAO', 'AGUARDANDO_EVIDENCIAS']
 
 export function isValidTransition(from: AvuStatus, to: AvuStatus): boolean {
   return STATUS_TRANSITIONS[from].includes(to)
@@ -35,5 +43,9 @@ export function getValidNextStatuses(from: AvuStatus): AvuStatus[] {
 
 /** Próximos status alcançáveis pela ação genérica de planejamento (exclui os reservados a Fiscal/Contratada). */
 export function getPlanningNextStatuses(from: AvuStatus): AvuStatus[] {
-  return getValidNextStatuses(from).filter((status) => !RESERVED_TRANSITION_TARGETS.includes(status))
+  const next = getValidNextStatuses(from).filter((status) => !RESERVED_TRANSITION_TARGETS.includes(status))
+  if (from === 'AGUARDANDO_APROVACAO') {
+    return next.filter((status) => !RESERVED_FROM_AGUARDANDO_APROVACAO.includes(status))
+  }
+  return next
 }

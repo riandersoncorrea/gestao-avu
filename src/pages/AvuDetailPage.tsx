@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
-import { CheckCircle2, Pencil, Trash2, XCircle } from 'lucide-react'
+import { ClipboardCheck, Pencil, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { LoadingState } from '@/components/LoadingState'
 import { EmptyState } from '@/components/EmptyState'
@@ -13,7 +13,7 @@ import { Textarea } from '@/components/Textarea'
 import { useToast } from '@/components/Toast'
 import { useDisclosure } from '@/hooks/useDisclosure'
 import { useAuth } from '@/features/auth/AuthContext'
-import { deleteAvu, getAvuById, getStatusSince, reviewExecution, submitEvidence } from '@/features/avus/avuService'
+import { deleteAvu, getAvuById, getStatusSince, submitEvidence } from '@/features/avus/avuService'
 import { AvuStatusBadge } from '@/features/avus/components/AvuStatusBadge'
 import { SlaBadge } from '@/features/avus/components/SlaBadge'
 import { PriorityBadge } from '@/features/avus/components/PriorityBadge'
@@ -57,12 +57,9 @@ export function AvuDetailPage() {
   const { show } = useToast()
   const { user, roles, isAdmin, hasPermission } = useAuth()
   const [tab, setTab] = useState<TabKey>('resumo')
-  const [reviewNote, setReviewNote] = useState('')
   const [evidenceNote, setEvidenceNote] = useState('')
 
   const deleteDialog = useDisclosure()
-  const approveDialog = useDisclosure()
-  const rejectDialog = useDisclosure()
   const evidenceDialog = useDisclosure()
 
   const avuQuery = useQuery({ queryKey: ['avus', id], queryFn: () => getAvuById(id!) })
@@ -83,18 +80,6 @@ export function AvuDetailPage() {
       navigate(ROUTES.avus)
     },
     onError: (error) => show({ tone: 'error', title: 'Erro ao excluir', description: String(error) }),
-  })
-
-  const reviewMutation = useMutation({
-    mutationFn: (approved: boolean) => reviewExecution(id!, approved, reviewNote.trim() || undefined),
-    onSuccess: (_data, approved) => {
-      show({ tone: 'success', title: approved ? 'Execução aprovada' : 'Execução reprovada' })
-      setReviewNote('')
-      approveDialog.close()
-      rejectDialog.close()
-      invalidateAvu()
-    },
-    onError: (error) => show({ tone: 'error', title: 'Erro ao registrar decisão', description: String(error) }),
   })
 
   const evidenceMutation = useMutation({
@@ -119,7 +104,8 @@ export function AvuDetailPage() {
 
   const canEdit =
     isAdmin || hasPermission('avus.create') || (roles.includes('planejamento') && hasPermission('planning.manage'))
-  const canReview = (isAdmin || (roles.includes('fiscal') && avu.fiscal?.id === user?.id)) && avu.status === 'AGUARDANDO_APROVACAO'
+  const canReview =
+    (isAdmin || (roles.includes('fiscal') && avu.fiscal?.id === user?.id)) && avu.status === 'AGUARDANDO_APROVACAO'
   const canSubmitEvidence =
     roles.includes('contratada') && ['EM_EXECUCAO', 'AGUARDANDO_EVIDENCIAS'].includes(avu.status)
   const canTransitionStatus = canEdit && getPlanningNextStatuses(avu.status).length > 0
@@ -191,24 +177,14 @@ export function AvuDetailPage() {
 
           {canReview && (
             <Card>
-              <CardContent className="flex flex-col gap-3">
-                <p className="text-sm font-medium text-graphite-800">Revisão de execução (Fiscal)</p>
-                <Textarea
-                  placeholder="Observação (opcional)"
-                  value={reviewNote}
-                  onChange={(event) => setReviewNote(event.target.value)}
-                  rows={2}
-                />
-                <div className="flex gap-3">
-                  <Button onClick={approveDialog.open}>
-                    <CheckCircle2 className="size-4" />
-                    Aprovar
-                  </Button>
-                  <Button variant="danger" onClick={rejectDialog.open}>
-                    <XCircle className="size-4" />
-                    Reprovar
-                  </Button>
-                </div>
+              <CardContent className="flex items-center justify-between gap-3">
+                <p className="text-sm text-graphite-700">
+                  Esta AVU está aguardando sua análise (aprovar, reprovar ou solicitar complementação de evidências).
+                </p>
+                <Button onClick={() => navigate(`${ROUTES.inspections}/${avu.id}`)}>
+                  <ClipboardCheck className="size-4" />
+                  Analisar na Fiscalização
+                </Button>
               </CardContent>
             </Card>
           )}
@@ -267,25 +243,6 @@ export function AvuDetailPage() {
         confirmLabel="Excluir"
         isDestructive
         isLoading={deleteMutation.isPending}
-      />
-      <ConfirmDialog
-        isOpen={approveDialog.isOpen}
-        onClose={approveDialog.close}
-        onConfirm={() => reviewMutation.mutate(true)}
-        title="Aprovar execução"
-        description="A AVU será marcada como Concluída."
-        confirmLabel="Aprovar"
-        isLoading={reviewMutation.isPending}
-      />
-      <ConfirmDialog
-        isOpen={rejectDialog.isOpen}
-        onClose={rejectDialog.close}
-        onConfirm={() => reviewMutation.mutate(false)}
-        title="Reprovar execução"
-        description="A AVU será marcada como Reprovada."
-        confirmLabel="Reprovar"
-        isDestructive
-        isLoading={reviewMutation.isPending}
       />
       <ConfirmDialog
         isOpen={evidenceDialog.isOpen}

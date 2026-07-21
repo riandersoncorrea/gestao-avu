@@ -252,6 +252,34 @@ Passa a exigir `exists (select 1 from avu_evidences where avu_id = p_avu_id)` an
 
 A policy de Sprint 1 (`actor_id = auth.uid() or is_admin() or has_permission('history.view')`) fazia a timeline da AVU (`AvuTimeline`, que lê `audit_logs` para os eventos "AVU criada"/"Dados atualizados") ficar incompleta para quem não gerou o evento — Contratada/Fiscal/Gestor só viam ações que eles mesmos fizeram. Passa a incluir `or (entity = 'avus' and can_view_avu(entity_id))`: quem pode ver a AVU, vê o histórico completo dela, não só suas próprias ações.
 
+## Migration `0006_fiscalizacao.sql`
+
+Módulo de Fiscalização: decisão do Fiscal sobre evidências (aprovar/reprovar/solicitar complementação), auditoria dedicada e notificações.
+
+### Novas transições — `AGUARDANDO_APROVACAO → EM_EXECUCAO`/`AGUARDANDO_EVIDENCIAS`
+
+Reprovar manda a AVU **direto para `EM_EXECUCAO`**, não para o status `REPROVADO` (pedido explícito da sprint). `REPROVADO` continua existindo no enum e no grafo por segurança/histórico, mas o novo fluxo não o usa mais — só é alcançável por `UPDATE` direto de admin. "Solicitar complementação" manda para `AGUARDANDO_EVIDENCIAS` (mesmo status já usado pelo caminho normal de planejamento).
+
+### `avu_approvals` — auditoria dedicada das decisões do Fiscal
+
+`id, avu_id, fiscal_id, decision (aprovado/reprovado/complementacao), comment, created_at`. RLS: select via `can_view_avu(avu_id)`; sem policy de insert/update para o client — só a RPC `avu_review_evidence` escreve.
+
+### `notifications` — uma linha por destinatário
+
+`id, user_id, title, body, entity, entity_id, read_at, created_at`. RLS: cada usuário só lê/marca como lida as próprias linhas; sem policy de insert para o client. Fan-out feito pela própria RPC no momento da decisão (não é um modelo de assinatura/broadcast) — vai para todo profile cujo `company_name` bate com `avus.empresa_executante` (a Contratada) e todo usuário com papel `planejamento`/`seguranca_empresarial`, excluindo quem tomou a decisão.
+
+### `avu_review_evidence(p_avu_id, p_decision, p_comment)` — substitui `avu_review_execution`
+
+Autorização: admin ou o fiscal responsável (`v_avu.fiscal is not null and v_avu.fiscal = auth.uid()` — **atenção ao `is not null` explícito**: sem ele, `has_role('fiscal') and v_avu.fiscal = auth.uid()` vira `NULL` quando `fiscal` é null, e um `if not (false or null)` em PL/pgSQL não dispara o `raise exception`, porque `if` só executa em `true`, nunca em `null` — isso permitia qualquer Fiscal "aprovar" uma AVU sem fiscal atribuído; achado e corrigido na verificação manual desta sprint). Exige `status = 'AGUARDANDO_APROVACAO'`. Grava a decisão em `avu_approvals`, seta o status via `CASE` (`aprovado→CONCLUIDO`, `reprovado→EM_EXECUCAO`, `complementacao→AGUARDANDO_EVIDENCIAS`) usando o mesmo GUC de comentário da Sprint 3 (a transição já cai em `avu_status_history` automaticamente), e dispara o fan-out de notificações. `avu_review_execution` (Sprint 2) foi removida (`drop function`) — sem chamador depois que o card "Revisão de execução" saiu do `AvuDetailPage`.
+
+### Brecha fechada em `avu_transition_status`
+
+A RPC genérica de planejamento já bloqueava `AGUARDANDO_APROVACAO`/`CONCLUIDO`/`REPROVADO` como *destino*, mas não bloqueava `EM_EXECUCAO`/`AGUARDANDO_EVIDENCIAS` quando a *origem* é `AGUARDANDO_APROVACAO` — como essas transições passaram a existir no grafo (para a nova RPC usar), sem essa correção o Planejamento conseguiria "reprovar"/"pedir complementação" por fora, sem gerar linha em `avu_approvals` nem notificação. Passa a buscar o status atual primeiro e bloquear esse par específico para quem não é admin.
+
+### `avu_fiscalizacao_view`
+
+`avus.*` + `latest_decision`/`latest_decision_comment`/`latest_decision_at`/`latest_decision_fiscal_id` via `left join lateral` na última linha de `avu_approvals` (mesmo padrão de `status_since` em `avu_planning_view`). Necessária porque o bucket "Reprovados" da página de Fiscalização **não pode ser um filtro de `status`** — reprovar manda a AVU pra `EM_EXECUCAO`, então só a última decisão registrada diz se aquela AVU foi reprovada.
+
 ## Convenções para próximas migrations
 
 - Uma migration por mudança de schema coesa, nomeada `NNNN_descricao.sql`.

@@ -22,13 +22,13 @@ const TIPO_LABEL: Record<EvidenceTipo, string> = {
   documento: 'Documento',
 }
 
-export function EvidenceList({ avuId }: { avuId: string }) {
+export function EvidenceList({ avuId, tipoFilter }: { avuId: string; tipoFilter?: EvidenceTipo }) {
   const { user, isAdmin } = useAuth()
   const { show } = useToast()
   const queryClient = useQueryClient()
-  const queryKey = ['avus', avuId, 'evidences']
+  const queryKey = ['avus', avuId, 'evidences', tipoFilter ?? 'all']
 
-  const evidencesQuery = useQuery({ queryKey, queryFn: () => listEvidences(avuId) })
+  const evidencesQuery = useQuery({ queryKey, queryFn: () => listEvidences(avuId, tipoFilter) })
 
   const deleteMutation = useMutation({
     mutationFn: (evidence: AvuEvidence) => deleteEvidence(evidence.id, evidence.arquivo),

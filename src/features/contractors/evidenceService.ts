@@ -44,14 +44,18 @@ function fromRow(row: RawEvidenceRow): AvuEvidence {
   }
 }
 
-export async function listEvidences(avuId: string): Promise<AvuEvidence[]> {
-  const { data, error } = await supabase
+export async function listEvidences(avuId: string, tipo?: EvidenceTipo): Promise<AvuEvidence[]> {
+  let query = supabase
     .from('avu_evidences')
     .select(
       'id, avu_id, tipo, arquivo, nome_arquivo, mime_type, tamanho_bytes, descricao, data_upload, usuario, latitude, longitude, data_execucao, equipe, equipamentos, usuario_profile:profiles(full_name)',
     )
     .eq('avu_id', avuId)
     .order('data_upload', { ascending: false })
+
+  if (tipo) query = query.eq('tipo', tipo)
+
+  const { data, error } = await query
 
   if (error) throw error
   return (data as unknown as RawEvidenceRow[]).map(fromRow)

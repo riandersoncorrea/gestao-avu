@@ -205,15 +205,6 @@ export async function submitEvidence(avuId: string, note?: string): Promise<void
   if (error) throw error
 }
 
-export async function reviewExecution(avuId: string, approved: boolean, note?: string): Promise<void> {
-  const { error } = await supabase.rpc('avu_review_execution', {
-    p_avu_id: avuId,
-    p_approved: approved,
-    p_note: note ?? null,
-  })
-  if (error) throw error
-}
-
 // ---------------------------------------------------------------------------
 // Histórico de status (avu_status_history) — fonte rica da timeline
 // ---------------------------------------------------------------------------

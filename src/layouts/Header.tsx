@@ -1,5 +1,6 @@
-import { Bell, Menu } from 'lucide-react'
+import { Menu } from 'lucide-react'
 import valeLogoPlaceholder from '@/assets/branding/vale-logo.placeholder.svg'
+import { NotificationsBell } from '@/components/NotificationsBell'
 
 export interface HeaderProps {
   onMenuClick: () => void
@@ -24,13 +25,7 @@ export function Header({ onMenuClick }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-4">
-        <button
-          type="button"
-          aria-label="Notificações"
-          className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
-        >
-          <Bell className="size-5" />
-        </button>
+        <NotificationsBell />
         <img src={valeLogoPlaceholder} alt="Vale" className="hidden h-6 w-auto sm:block" />
       </div>
     </header>

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
 
@@ -11,6 +12,7 @@ export interface ConfirmDialogProps {
   cancelLabel?: string
   isDestructive?: boolean
   isLoading?: boolean
+  children?: ReactNode
 }
 
 export function ConfirmDialog({
@@ -23,6 +25,7 @@ export function ConfirmDialog({
   cancelLabel = 'Cancelar',
   isDestructive,
   isLoading,
+  children,
 }: ConfirmDialogProps) {
   return (
     <Modal
@@ -46,6 +49,7 @@ export function ConfirmDialog({
       }
     >
       {description && <p className="text-gray-500">{description}</p>}
+      {children && <div className={description ? 'mt-4' : undefined}>{children}</div>}
     </Modal>
   )
 }

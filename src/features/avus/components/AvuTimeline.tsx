@@ -28,6 +28,12 @@ function describeStatusChange(previous: AvuStatus | null, next: AvuStatus): { la
   if (next === 'AGUARDANDO_APROVACAO') return { label: 'Evidência enviada', icon: Send }
   if (next === 'CONCLUIDO') return { label: 'Execução aprovada', icon: CheckCircle2 }
   if (next === 'REPROVADO') return { label: 'Execução reprovada', icon: XCircle }
+  if (previous === 'AGUARDANDO_APROVACAO' && next === 'EM_EXECUCAO') {
+    return { label: 'Execução reprovada — reaberta para retrabalho', icon: XCircle }
+  }
+  if (previous === 'AGUARDANDO_APROVACAO' && next === 'AGUARDANDO_EVIDENCIAS') {
+    return { label: 'Complementação de evidências solicitada', icon: Send }
+  }
   if (previous === 'REPROVADO' && next === 'EM_EXECUCAO') return { label: 'Reaberta para retrabalho', icon: RefreshCcw }
   if (!previous) return { label: `Status definido como "${avuStatusLabel(next)}"`, icon: FileEdit }
   return { label: `Status alterado de "${avuStatusLabel(previous)}" para "${avuStatusLabel(next)}"`, icon: FileEdit }

@@ -27,11 +27,11 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Planejamento', path: ROUTES.planning, icon: CalendarClock },
   { label: 'Mapa', path: ROUTES.map, icon: Map },
   { label: 'Contratadas', path: ROUTES.contractors, icon: HardHat },
-  { label: 'Fiscalização', path: ROUTES.inspections, icon: ClipboardCheck },
   { label: 'Importações', path: ROUTES.imports, icon: Upload },
   { label: 'Relatórios', path: ROUTES.reports, icon: FileBarChart },
 ]
 
+const INSPECTIONS_ITEM: NavItem = { label: 'Fiscalização', path: ROUTES.inspections, icon: ClipboardCheck }
 const ADMIN_ITEM: NavItem = { label: 'Administração', path: ROUTES.admin, icon: Settings }
 
 export interface SidebarProps {
@@ -41,8 +41,12 @@ export interface SidebarProps {
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const navigate = useNavigate()
-  const { accessProfile, roles, isAdmin } = useAuth()
-  const navItems = isAdmin ? [...NAV_ITEMS, ADMIN_ITEM] : NAV_ITEMS
+  const { accessProfile, roles, isAdmin, hasPermission } = useAuth()
+  const navItems = [
+    ...NAV_ITEMS,
+    ...(isAdmin || hasPermission('evidence.analyze') ? [INSPECTIONS_ITEM] : []),
+    ...(isAdmin ? [ADMIN_ITEM] : []),
+  ]
 
   async function handleSignOut() {
     await signOut()

@@ -27,6 +27,14 @@ describe('isValidTransition — ramificações', () => {
     expect(isValidTransition('AGUARDANDO_APROVACAO', 'REPROVADO')).toBe(true)
   })
 
+  it('AGUARDANDO_APROVACAO → EM_EXECUCAO é válida (Fiscal reprova, volta direto pra execução)', () => {
+    expect(isValidTransition('AGUARDANDO_APROVACAO', 'EM_EXECUCAO')).toBe(true)
+  })
+
+  it('AGUARDANDO_APROVACAO → AGUARDANDO_EVIDENCIAS é válida (Fiscal solicita complementação)', () => {
+    expect(isValidTransition('AGUARDANDO_APROVACAO', 'AGUARDANDO_EVIDENCIAS')).toBe(true)
+  })
+
   it('REPROVADO → EM_EXECUCAO é válida (retrabalho)', () => {
     expect(isValidTransition('REPROVADO', 'EM_EXECUCAO')).toBe(true)
   })
@@ -60,13 +68,17 @@ describe('isValidTransition — transições inválidas', () => {
 describe('getPlanningNextStatuses', () => {
   it('exclui os alvos reservados a Fiscal/Contratada', () => {
     expect(getPlanningNextStatuses('AGUARDANDO_EVIDENCIAS')).toEqual(['CANCELADO'])
-    // AGUARDANDO_APROVACAO → CANCELADO continua disponível (não é um alvo reservado);
-    // só CONCLUIDO/REPROVADO (as decisões do fiscal) ficam de fora da ação genérica.
+    // AGUARDANDO_APROVACAO → CANCELADO continua disponível (não é reservado); todo o
+    // resto (CONCLUIDO/REPROVADO/EM_EXECUCAO/AGUARDANDO_EVIDENCIAS) são as decisões do
+    // fiscal (avu_review_evidence), não da ação genérica de planejamento.
     expect(getPlanningNextStatuses('AGUARDANDO_APROVACAO')).toEqual(['CANCELADO'])
   })
 
   it('mantém as transições normais do fluxo de planejamento', () => {
     expect(getPlanningNextStatuses('NOVO')).toEqual(['TRIAGEM', 'CANCELADO'])
     expect(getPlanningNextStatuses('REPROVADO')).toEqual(['EM_EXECUCAO', 'CANCELADO'])
+    // EM_EXECUCAO → AGUARDANDO_EVIDENCIAS continua disponível pro planejamento normalmente —
+    // só fica reservado ao Fiscal quando a ORIGEM é AGUARDANDO_APROVACAO, não aqui.
+    expect(getPlanningNextStatuses('EM_EXECUCAO')).toEqual(['AGUARDANDO_EVIDENCIAS', 'CANCELADO'])
   })
 })

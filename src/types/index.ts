@@ -84,3 +84,14 @@ export interface AuditLog {
 }
 
 export type StatusTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral'
+
+export interface AppNotification {
+  id: string
+  userId: string
+  title: string
+  body: string
+  entity: string | null
+  entityId: string | null
+  readAt: string | null
+  createdAt: string
+}

@@ -11,7 +11,7 @@ Duas camadas de teste, porque autorização aqui nunca depende só do frontend:
 npm run test
 ```
 
-108 testes em 9 arquivos.
+115 testes em 10 arquivos.
 
 ### `src/features/auth/permissions.test.ts`
 
@@ -324,3 +324,82 @@ rollback;
 | Upload real (navegador, logado como Admin — que bypassa a restrição de insert) | ✅ arquivo aparece em `avu_evidences`/Storage, com GPS/equipe/equipamentos preenchidos |
 | Usuário só-Contratada acessando `/` | ✅ redirecionado para `/portal` |
 | Usuário não-Contratada/não-admin acessando `/portal` | ✅ redirecionado para `/` |
+
+### `src/features/inspections/approvalService.test.ts` (Sprint 5)
+
+`mapBucketToQuery` testa a tradução dos 4 buckets da fila de Fiscalização: 3 são filtro de `status` (`aguardando_aprovacao`, `aguardando_complementacao`, `aprovados`); "Reprovados" é o único que usa `latestDecision` em vez de `status`, porque reprovar manda a AVU para `EM_EXECUCAO`, não para o status `REPROVADO`.
+
+## Verificação manual do módulo de Fiscalização (Sprint 5)
+
+Pré-requisito: pelo menos uma AVU com `status = 'AGUARDANDO_APROVACAO'` e um usuário Fiscal. Todos os blocos usam `rollback` — seguro em produção.
+
+```sql
+-- 1) Decisão 'aprovado' -> CONCLUIDO + linha em avu_approvals.
+begin;
+select set_config('request.jwt.claims', json_build_object('sub', '<ID_FISCAL_RESPONSAVEL>', 'role', 'authenticated')::text, true);
+set local role authenticated;
+select public.avu_review_evidence('<ID_AVU_AGUARDANDO_APROVACAO>', 'aprovado', 'ok, aprovado');
+select status, (select count(*) from public.avu_approvals where avu_id = avus.id and decision = 'aprovado')
+from public.avus where id = '<ID_AVU_AGUARDANDO_APROVACAO>';
+-- ↑ deve mostrar status=CONCLUIDO e count=1
+rollback;
+```
+
+```sql
+-- 2) Decisão 'reprovado' -> EM_EXECUCAO (NÃO o status REPROVADO).
+begin;
+select set_config('request.jwt.claims', json_build_object('sub', '<ID_FISCAL_RESPONSAVEL>', 'role', 'authenticated')::text, true);
+set local role authenticated;
+select public.avu_review_evidence('<ID_AVU_AGUARDANDO_APROVACAO>', 'reprovado', 'reprovado, falta evidência');
+select status from public.avus where id = '<ID_AVU_AGUARDANDO_APROVACAO>';
+-- ↑ deve mostrar status=EM_EXECUCAO
+rollback;
+```
+
+```sql
+-- 3) Fiscal que NÃO é o responsável (avu.fiscal is null ou de outra pessoa) -> bloqueado.
+-- Este é o teste que pegou o bug de lógica de três valores do PL/pgSQL: antes da correção
+-- (v_avu.fiscal is not null and ...), esta chamada passava sem erro quando fiscal era null.
+begin;
+select set_config('request.jwt.claims', json_build_object('sub', '<ID_FISCAL_QUALQUER>', 'role', 'authenticated')::text, true);
+set local role authenticated;
+select public.avu_review_evidence('<ID_AVU_SEM_FISCAL_OU_DE_OUTRO_FISCAL>', 'aprovado', null);
+-- ↑ deve FALHAR: "Apenas o fiscal responsável pode analisar esta AVU"
+rollback;
+```
+
+```sql
+-- 4) avu_transition_status: Planejamento tentando pular AGUARDANDO_APROVACAO -> EM_EXECUCAO
+-- direto, por fora do avu_review_evidence (bypassaria avu_approvals e as notificações).
+begin;
+select set_config('request.jwt.claims', json_build_object('sub', '<ID_PLANEJAMENTO>', 'role', 'authenticated')::text, true);
+set local role authenticated;
+select public.avu_transition_status('<ID_AVU_AGUARDANDO_APROVACAO>', 'EM_EXECUCAO', null);
+-- ↑ deve FALHAR: "Use avu_review_evidence para esta transição"
+rollback;
+```
+
+```sql
+-- 5) notifications RLS: cada usuário só vê as próprias linhas.
+begin;
+insert into public.notifications (user_id, title, body) values ('<ID_QUALQUER_USUARIO>', 'teste', 'corpo');
+select set_config('request.jwt.claims', json_build_object('sub', '<ID_QUALQUER_USUARIO>', 'role', 'authenticated')::text, true);
+set local role authenticated;
+select count(*) from public.notifications where title = 'teste'; -- deve ser 1
+select set_config('request.jwt.claims', json_build_object('sub', '<OUTRO_ID_QUALQUER>', 'role', 'authenticated')::text, true);
+set local role authenticated;
+select count(*) from public.notifications where title = 'teste'; -- deve ser 0
+rollback;
+```
+
+### Checklist esperado — Fiscalização
+
+| Cenário | Resultado esperado |
+|---|---|
+| Fiscal responsável aprova | ✅ status=CONCLUIDO, linha em `avu_approvals`, notificações fanned out |
+| Fiscal responsável reprova | ✅ status=EM_EXECUCAO (não REPROVADO) |
+| Fiscal responsável solicita complementação | ✅ status=AGUARDANDO_EVIDENCIAS |
+| Fiscal sem `avu.fiscal` correspondente (incluindo `fiscal is null`) | ❌ bloqueado — cobre o bug de três valores encontrado e corrigido nesta sprint |
+| Planejamento chamando `avu_transition_status` de AGUARDANDO_APROVACAO para EM_EXECUCAO/AGUARDANDO_EVIDENCIAS | ❌ bloqueado (reservado a `avu_review_evidence`) |
+| `notifications` — outro usuário lendo a notificação de alguém | ❌ 0 linhas (RLS) |
+| Bucket "Reprovados" da fila | ✅ usa `latest_decision`, não `status` (reprovar não passa por `REPROVADO`) |

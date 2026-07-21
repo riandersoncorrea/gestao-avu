@@ -18,6 +18,9 @@ const ContractorsPage = lazy(() =>
 const InspectionsPage = lazy(() =>
   import('@/pages/InspectionsPage').then((m) => ({ default: m.InspectionsPage })),
 )
+const InspectionReviewPage = lazy(() =>
+  import('@/pages/InspectionReviewPage').then((m) => ({ default: m.InspectionReviewPage })),
+)
 const ImportsPage = lazy(() => import('@/pages/ImportsPage').then((m) => ({ default: m.ImportsPage })))
 const ReportsPage = lazy(() => import('@/pages/ReportsPage').then((m) => ({ default: m.ReportsPage })))
 const AdminPage = lazy(() => import('@/pages/AdminPage').then((m) => ({ default: m.AdminPage })))
@@ -76,7 +79,13 @@ export const router = createBrowserRouter([
           { path: ROUTES.planning, element: withSuspense(<PlanningPage />) },
           { path: ROUTES.map, element: withSuspense(<MapPage />) },
           { path: ROUTES.contractors, element: withSuspense(<ContractorsPage />) },
-          { path: ROUTES.inspections, element: withSuspense(<InspectionsPage />) },
+          {
+            element: <RequirePermission permission="evidence.analyze" />,
+            children: [
+              { path: ROUTES.inspections, element: withSuspense(<InspectionsPage />) },
+              { path: `${ROUTES.inspections}/:id`, element: withSuspense(<InspectionReviewPage />) },
+            ],
+          },
           { path: ROUTES.imports, element: withSuspense(<ImportsPage />) },
           { path: ROUTES.reports, element: withSuspense(<ReportsPage />) },
           {

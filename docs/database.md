@@ -1,0 +1,203 @@
+# Banco de Dados — Gestão de AVU
+
+Schema versionado em `supabase/migrations/`. Tabelas de negócio além de `avus` (`planning`, `contractors`, `inspections`, ...) ficam para as próximas sprints (ver [roadmap.md](./roadmap.md)).
+
+## Migration `0001_init.sql`
+
+### Tabelas
+
+| Tabela | Propósito |
+|---|---|
+| `roles` | Papéis de acesso (admin, fiscal, planejador, contratada) |
+| `permissions` | Permissões granulares por chave (ex.: `avus.create`) |
+| `role_permissions` | Associação N:N entre `roles` e `permissions` |
+| `profiles` | Perfil do usuário autenticado, 1:1 com `auth.users` |
+| `audit_logs` | Trilha de auditoria (ator, ação, entidade, metadata) |
+
+### Relacionamentos
+
+```
+auth.users (Supabase Auth)
+    │ 1:1 (trigger handle_new_user cria a linha automaticamente)
+    ▼
+profiles ──N:1──► roles ──N:N──► permissions
+                                  (via role_permissions)
+
+audit_logs.actor_id ──N:1──► profiles
+```
+
+### Automatizações
+
+- **`handle_new_user()`**: trigger em `auth.users` (`after insert`) que cria a linha correspondente em `profiles`, usando `raw_user_meta_data.full_name` quando disponível, senão o e-mail.
+- **`set_updated_at()`**: trigger genérico que mantém `profiles.updated_at` em dia — reaproveitável em tabelas futuras.
+- **`is_admin()`**: função `security definer` usada nas policies de RLS para checar se o usuário autenticado tem `role.name = 'admin'`.
+
+### Row Level Security
+
+RLS habilitado em todas as tabelas desta migration.
+
+| Tabela | Leitura | Escrita |
+|---|---|---|
+| `roles`, `permissions`, `role_permissions` | qualquer usuário autenticado | apenas admins |
+| `profiles` | qualquer usuário autenticado (diretório de usuários) | o próprio usuário (ou admin) atualiza; inserção manual restrita a admin (o fluxo normal é via trigger) |
+| `audit_logs` | o próprio ator (`actor_id = auth.uid()`) ou admin | sem policy de `insert`/`update`/`delete` para o client — a escrita é feita por funções/triggers com `security definer` ou pela service role |
+
+### Seed inicial
+
+A migration já insere 4 roles padrão: `admin`, `fiscal`, `planejador`, `contratada`. Nenhuma permissão é semeada ainda — a granularidade de `permissions`/`role_permissions` será definida junto com as primeiras features de negócio.
+
+## Migration `0002_rbac_and_invites.sql`
+
+Substitui o modelo "um papel por perfil" (`profiles.role_id`) por RBAC many-to-many completo para os 7 perfis do negócio, e adiciona o fluxo de convites que permite auto-cadastro sem expor a `service_role key` no cliente.
+
+### Tabelas novas
+
+| Tabela | Propósito |
+|---|---|
+| `user_roles` | Atribuição de perfis a usuários (many-to-many: um usuário pode ter mais de um perfil) |
+| `user_invites` | Convite de cadastro: e-mail + perfil pré-atribuído; só admin cria/lê/apaga |
+
+### Alterações em tabelas existentes
+
+- `profiles.role_id` **removida** (substituída por `user_roles`).
+- `profiles.is_active` (boolean, default `true`) — permite desativar um usuário sem apagar a conta.
+- `audit_logs`: policy de leitura ganha `or has_permission('history.view')` (Segurança Empresarial vê todo o histórico, não só o próprio).
+
+### Os 7 perfis e suas permissões (seed)
+
+| Perfil (`roles.name`) | Permissões (`permissions.key`) |
+|---|---|
+| `admin` | acesso total via `is_admin()` — não depende de `role_permissions` |
+| `seguranca_empresarial` | `avus.view_all`, `avus.create`, `security.manage`, `history.view` |
+| `planejamento` | `avus.view_all`, `planning.manage`, `noms.view` |
+| `fiscal` | `avus.view_assigned`, `evidence.analyze`, `execution.approve` |
+| `contratada` | `avus.view_assigned`, `evidence.submit` |
+| `gestor` | `indicators.view`, `avus.view_area` |
+| `leitor` | `readonly.view` |
+
+`avus.view_assigned` (Fiscal/Contratada) e `avus.view_area` (Gestor) ganharam escopo real por linha na migration `0003_avus.sql` (ver abaixo), via `can_view_avu()`.
+
+### Funções de autorização
+
+- `is_admin()` — reescrita para checar `user_roles` (antes checava `profiles.role_id`).
+- `has_role(role_slug)` — o usuário atual tem esse perfil?
+- `has_permission(permission_key)` — o usuário atual (via qualquer um dos seus perfis) tem essa permissão? `is_admin()` sempre retorna `true` aqui.
+- `is_active_user()` — o usuário atual está com `profiles.is_active = true`?
+
+Todas `security definer`, pensadas para serem usadas dentro de policies de RLS (inclusive nas próximas migrations, para as tabelas de AVUs).
+
+### `handle_new_user()` — bootstrap + convite
+
+1. Sempre cria a linha em `profiles`.
+2. **Se `user_roles` estiver vazia no sistema inteiro** → este é o primeiro usuário → vira `admin` automaticamente (bootstrap).
+3. **Caso contrário** → procura um `user_invites` não usado para o e-mail. Se não achar, `raise exception` — isso reverte a transação inteira, incluindo o `insert` em `auth.users`, então o cadastro falha de ponta a ponta (o Supabase Auth devolve erro ao cliente). Se achar, atribui o `role_id` do convite e marca `used_at`.
+
+> **Atenção operacional**: crie a conta admin (primeiro cadastro em `/cadastro`) antes de divulgar a URL de cadastro publicamente — o primeiro cadastro do sistema sempre vira admin.
+
+### Auditoria automática
+
+Trigger `user_roles_audit` (`after insert or delete` em `user_roles`) grava em `audit_logs` toda atribuição/remoção de perfil — não depende do frontend chamar nada, então nem uma RPC comprometida escaparia da trilha.
+
+### RPCs administrativas
+
+- `admin_set_user_roles(target_user_id, role_ids[])` — substitui atomicamente os perfis de um usuário. Rejeita quem não é admin (`raise exception`) mesmo que alguém chame a função direto via `supabase.rpc(...)` sem passar pela UI.
+- `admin_set_user_active(target_user_id, active)` — ativa/desativa um usuário e grava em `audit_logs`. Mesma proteção contra chamada direta.
+
+### RLS
+
+| Tabela | Leitura | Escrita |
+|---|---|---|
+| `user_roles` | o próprio (`user_id = auth.uid()`) ou admin | **nenhuma policy de insert/update/delete para o client** — só é possível escrever via `handle_new_user()` (trigger) ou `admin_set_user_roles()` (RPC), ambas `security definer` |
+| `user_invites` | só admin | só admin (insert/delete) |
+
+### Bootstrap do primeiro admin — passo a passo
+
+1. Aplicar a migration (ver "Como aplicar" abaixo).
+2. Acessar `/cadastro` e criar a primeira conta — ela vira admin automaticamente.
+3. Confirmar o e-mail (obrigatório neste projeto — `mailer_autoconfirm=false`).
+4. Entrar, ir em Administração → Convites, e convidar as próximas pessoas com o perfil correto.
+
+## Migration `0003_avus.sql`
+
+Núcleo do sistema: a tabela `avus` e tudo que gira em torno dela (comentários, anexos, escopo por linha, ações sensíveis via RPC, auditoria automática).
+
+### Tabelas novas
+
+| Tabela | Propósito |
+|---|---|
+| `avus` | A própria Análise de Vulnerabilidade — todos os campos pedidos (identificação, prazo, localização, responsáveis, integração SAP) |
+| `avu_comments` | Comentários da aba "Comentários" |
+| `avu_attachments` | Metadados dos arquivos das abas "Documentos"/"Fotos" (binário no bucket `avu-attachments`) |
+
+### Alterações em tabelas existentes
+
+- `profiles.company_name` (text, nullable) — empresa da Contratada, usada para casar com `avus.empresa_executante`.
+- `profiles.area` (text, nullable) — área do Gestor, usada para casar com `avus.gerencia_responsavel`.
+
+### `avus` — campos e decisões
+
+Todos os campos pedidos, mais `created_at`/`updated_at`. Decisões que fogem do óbvio:
+
+- `status` é um `enum avu_status` com os 10 valores exatos pedidos (`NOVO` é o default).
+- `numero_avu` é gerado automaticamente (`AVU-<ano>-<sequência com zero à esquerda>`) por um trigger `before insert` (`set_avu_numero()`) quando não informado — não precisa ser digitado no formulário.
+- `emitente`, `responsavel` e `fiscal` são `uuid` referenciando `profiles(id)` (não texto) — permite seletor de usuário no formulário e faz o RLS do Fiscal funcionar por igualdade de UUID.
+- `empresa_executante` e `gerencia_responsavel` continuam texto livre (como pedido) — o casamento com `profiles.company_name`/`profiles.area` é feito com `lower(trim(...))` para tolerar diferença de caixa/espaço.
+- `nivel_confianca_ia` tem `check` garantindo 0–100 quando não nulo.
+
+### Visibilidade por linha (escopo de cada perfil)
+
+- **`can_view_avu(avu_id)`**: `is_admin()` **ou** `has_permission('avus.view_all')`/`'readonly.view'` (Segurança Empresarial, Planejamento, Leitor veem tudo) **ou** é o Fiscal atribuído (`fiscal = auth.uid()`) **ou** é Contratada da empresa executante (`profiles.company_name` bate com `avus.empresa_executante`) **ou** é Gestor da área (`profiles.area` bate com `avus.gerencia_responsavel`).
+- **`can_write_avu_related(avu_id)`**: igual a `can_view_avu()`, mas exclui quem só tem `readonly.view` — usada nas policies de `avu_comments`/`avu_attachments` para o Leitor não poder comentar nem anexar (só ler).
+
+### RLS de `avus`
+
+| Operação | Regra |
+|---|---|
+| `select` | `can_view_avu(id)` |
+| `insert` | `is_admin()` ou `has_permission('avus.create')` (Segurança Empresarial) |
+| `update` | `is_admin()`, `has_permission('avus.create')`, ou Planejamento com `planning.manage` — edição geral de campos |
+| `delete` | só `is_admin()` |
+
+**Fiscal e Contratada não têm policy de `update` genérica** — a única forma deles mudarem uma AVU é pelas RPCs abaixo, que fazem sua própria checagem de autorização. Isso segue o mesmo princípio das RPCs administrativas da Sprint 1: a ação sensível vive numa função, não numa policy ampla de `UPDATE ... WHERE`.
+
+### RPCs de ações sensíveis
+
+- **`avu_submit_evidence(p_avu_id, p_note)`**: só Contratada da empresa executante da AVU. Muda `status` para `AGUARDANDO_APROVACAO`, opcionalmente grava um comentário, audita.
+- **`avu_review_execution(p_avu_id, p_approved, p_note)`**: só o Fiscal atribuído (ou admin). Muda `status` para `CONCLUIDO` ou `REPROVADO`, opcionalmente grava um comentário, audita.
+
+Ambas rejeitam (`raise exception`) quem não tem autorização, mesmo que a chamada venha direto de `supabase.rpc(...)` sem passar pela UI.
+
+### Anexos — Supabase Storage
+
+Bucket **`avu-attachments`** (privado). Convenção de path: `<avu_id>/<uuid>-<nome-original>` — o primeiro segmento do path é o `avu_id`, usado pelas policies de `storage.objects` (via `(storage.foldername(name))[1]`) para aplicar exatamente o mesmo `can_view_avu()`/`can_write_avu_related()` da tabela `avus`. Download é sempre via signed URL (10 min), nunca URL pública.
+
+### Auditoria automática
+
+- `avus_audit_insert` (`after insert`) → `audit_logs` com ação `avu.created`.
+- `avus_audit_update` (`after update`) → `avu.status_changed` (com `from`/`to` no `metadata`) quando o status muda, `avu.updated` caso contrário.
+- As RPCs gravam suas próprias ações (`avu.evidence_submitted`, `avu.approved`, `avu.rejected`).
+
+Isso é a "auditoria básica de alterações" pedida — automática, no banco, não depende do frontend chamar nada.
+
+## Convenções para próximas migrations
+
+- Uma migration por mudança de schema coesa, nomeada `NNNN_descricao.sql`.
+- Toda tabela nova nasce com RLS habilitado — nunca deixar uma tabela sem policy explícita em produção.
+- Chaves estrangeiras para `auth.users`/`profiles` sempre com `on delete` explícito (`cascade` ou `set null`, conforme o caso).
+- Tabelas de negócio devem ter `created_at`/`updated_at` e, quando fizer sentido, um vínculo com `audit_logs` (ação registrada via trigger ou explicitamente no service).
+
+## Como aplicar
+
+O projeto já tem um Supabase real configurado em `.env` (ver `.env.example`), mas as migrations **não são aplicadas automaticamente** — não há credenciais de banco (senha/`service_role key`) neste ambiente, e não devem ser coladas em chat por segurança. Aplique manualmente, na ordem, com uma das duas opções:
+
+**Opção 1 — SQL Editor do painel Supabase** (mais simples): cole o conteúdo de `supabase/migrations/0001_init.sql` e rode; depois `0002_rbac_and_invites.sql`; depois `0003_avus.sql` — nessa ordem.
+
+**Opção 2 — Supabase CLI** (via `npx`, sem instalação global):
+
+```bash
+npx supabase login
+npx supabase link --project-ref pgllntwbkwqekfamtahk
+npx supabase db push
+```
+
+Depois de aplicar, siga o "Bootstrap do primeiro admin" acima antes de divulgar a URL de `/cadastro`.

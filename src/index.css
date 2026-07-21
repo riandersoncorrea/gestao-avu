@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  /* Primary — teal/verde Vale */
+  --color-primary-50: #ebf8f6;
+  --color-primary-100: #d2efea;
+  --color-primary-200: #a6dfd6;
+  --color-primary-300: #79cfc1;
+  --color-primary-400: #4dbfad;
+  --color-primary-500: #0e9b8a;
+  --color-primary-600: #0c8175;
+  --color-primary-700: #0a675f;
+  --color-primary-800: #084d48;
+  --color-primary-900: #053430;
+
+  /* Secondary — verde médio (também usado como "success") */
+  --color-secondary-50: #eaf7f1;
+  --color-secondary-100: #cbebdd;
+  --color-secondary-200: #98d7bc;
+  --color-secondary-300: #66c39b;
+  --color-secondary-400: #47b592;
+  --color-secondary-500: #2ead8a;
+  --color-secondary-600: #23926f;
+  --color-secondary-700: #1c7659;
+  --color-secondary-800: #145843;
+  --color-secondary-900: #0d3b2d;
+
+  /* Mint — verde claro de apoio */
+  --color-mint-100: #dff3ed;
+  --color-mint-300: #a9ded0;
+  --color-mint-500: #72c4b0;
+  --color-mint-700: #3e9682;
+
+  /* Gold — dourado/amarelo */
+  --color-gold-50: #fef8e6;
+  --color-gold-100: #fcedbe;
+  --color-gold-200: #f9dd85;
+  --color-gold-300: #f6cd4c;
+  --color-gold-400: #f4c42e;
+  --color-gold-500: #f2b705;
+  --color-gold-600: #c99804;
+  --color-gold-700: #a07903;
+  --color-gold-800: #785b02;
+  --color-gold-900: #4f3c02;
+
+  /* Magenta — categoria "alimentação" (ícone SEOP) */
+  --color-magenta-50: #fbeaf0;
+  --color-magenta-100: #f5c9d8;
+  --color-magenta-200: #ea96b4;
+  --color-magenta-300: #df6390;
+  --color-magenta-400: #d24f7d;
+  --color-magenta-500: #c6376b;
+  --color-magenta-600: #a32b57;
+  --color-magenta-700: #802044;
+  --color-magenta-800: #5e1732;
+  --color-magenta-900: #3d0f20;
+
+  /* Sky — categoria "transporte" (ícone SEOP) */
+  --color-sky-50: #eaf6fb;
+  --color-sky-100: #c7e9f4;
+  --color-sky-200: #93d2e9;
+  --color-sky-300: #6fc2e1;
+  --color-sky-400: #5bb9dc;
+  --color-sky-500: #4fb3d9;
+  --color-sky-600: #2e93ba;
+  --color-sky-700: #237291;
+  --color-sky-800: #1a5670;
+  --color-sky-900: #123b4c;
+
+  /* Graphite — neutro escuro / texto principal */
+  --color-graphite-50: #eceeef;
+  --color-graphite-100: #d3d8da;
+  --color-graphite-200: #a7b0b4;
+  --color-graphite-300: #7c888d;
+  --color-graphite-400: #4f5d63;
+  --color-graphite-500: #37454b;
+  --color-graphite-600: #2e3b41;
+  --color-graphite-700: #263238;
+  --color-graphite-800: #1b2529;
+  --color-graphite-900: #10171a;
+
+  /* Gray — neutro de UI (fundos, bordas, texto secundário) */
+  --color-gray-50: #fafafa;
+  --color-gray-100: #f2f2f2;
+  --color-gray-200: #e5e5e5;
+  --color-gray-300: #d4d4d5;
+  --color-gray-400: #bfc0c1;
+  --color-gray-500: #a7a9aa;
+  --color-gray-600: #8b8d8e;
+  --color-gray-700: #6e7071;
+  --color-gray-800: #525354;
+  --color-gray-900: #363738;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--color-graphite-700);
+  background: var(--color-gray-50);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

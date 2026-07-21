@@ -222,6 +222,36 @@ Autorização: `is_admin()` ou `has_permission('avus.create')` ou (`has_role('pl
 
 > **Nota de implementação**: o frontend não usa embed de FK do PostgREST (`profiles!avus_fiscal_fkey(...)`) contra esta view — não é garantido que o PostgREST detecte relacionamentos de FK através de uma view. `planningService.ts` resolve nomes de emitente/responsável/fiscal com um mapa de perfis carregado à parte.
 
+## Migration `0005_contractor_portal.sql`
+
+Portal da Contratada: envio real de evidências (fotos/vídeos/documentos), distinto do anexo genérico de Documentos/Fotos.
+
+### `avu_evidences`
+
+`id, avu_id, tipo (foto/video/documento), arquivo, nome_arquivo, mime_type, tamanho_bytes, descricao, data_upload, usuario, latitude, longitude, data_execucao, equipe, equipamentos`. Diferente de `avu_attachments` (Sprint 2, gerenciador genérico de Documentos/Fotos que qualquer editor pode usar): esta tabela é especificamente a submissão formal de evidência da Contratada, amarrada ao fluxo de aprovação, com o contexto de execução (GPS, equipe, equipamentos, data). `data_execucao`/`equipe`/`equipamentos`/`descricao` são compartilhados por todos os arquivos de um mesmo envio (um envio = um formulário, N arquivos = N linhas com o mesmo contexto).
+
+### RLS mais restrita que `avu_attachments`
+
+- `select`: `can_view_avu(avu_id)` — qualquer um que vê a AVU vê a evidência (Fiscal precisa disso para aprovar/reprovar).
+- `insert`: `is_admin() or (has_role('contratada') and can_view_avu(avu_id))`, e `usuario = auth.uid()` — diferente de `avu_attachments`, que usa o mais amplo `can_write_avu_related` (deixaria Planejamento/Segurança Empresarial/Gestor inserirem evidência, papel que não é deles).
+- `delete`: próprio uploader ou admin.
+
+### Storage — bucket `avu-evidences`
+
+Convenção de path `avus/{avu_id}/evidences/{uuid}-{nome}` (diferente de `avu-attachments`, que usa `{avu_id}/{uuid}-{nome}` direto na raiz) — por isso a policy de `storage.objects` usa `(storage.foldername(name))[2]` como `avu_id` (índice 2, não 1: o primeiro segmento é o literal `avus`). Bucket com `file_size_limit` de 100MB (acomoda vídeo) e `allowed_mime_types` restrito a imagem/vídeo/PDF/Office.
+
+### Correção no grafo de transições — `EM_EXECUCAO → AGUARDANDO_APROVACAO`
+
+Descoberta na verificação manual desta sprint: essa transição nunca tinha sido adicionada a `avu_status_transitions` (Sprint 3), mas o frontend sempre ofereceu o envio de evidência a partir de `EM_EXECUCAO` (não só de `AGUARDANDO_EVIDENCIAS`) — sem esse par no grafo, `avu_submit_evidence` falhava no trigger de validação de transição sempre que a Contratada tentava enviar evidência de uma AVU ainda em `EM_EXECUCAO`. Corrigido no seed e em `features/planning/transitions.ts`.
+
+### `avu_submit_evidence` — validação nova
+
+Passa a exigir `exists (select 1 from avu_evidences where avu_id = p_avu_id)` antes de permitir a transição para `AGUARDANDO_APROVACAO` — sem isso, era possível "enviar evidência" sem nenhum arquivo anexado.
+
+### Correção de RLS em `audit_logs`
+
+A policy de Sprint 1 (`actor_id = auth.uid() or is_admin() or has_permission('history.view')`) fazia a timeline da AVU (`AvuTimeline`, que lê `audit_logs` para os eventos "AVU criada"/"Dados atualizados") ficar incompleta para quem não gerou o evento — Contratada/Fiscal/Gestor só viam ações que eles mesmos fizeram. Passa a incluir `or (entity = 'avus' and can_view_avu(entity_id))`: quem pode ver a AVU, vê o histórico completo dela, não só suas próprias ações.
+
 ## Convenções para próximas migrations
 
 - Uma migration por mudança de schema coesa, nomeada `NNNN_descricao.sql`.

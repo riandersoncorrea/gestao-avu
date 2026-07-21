@@ -8,6 +8,7 @@ export const ROUTES = {
   imports: '/importacoes',
   reports: '/relatorios',
   admin: '/administracao',
+  portal: '/portal',
   login: '/login',
   signup: '/cadastro',
   forgotPassword: '/esqueci-senha',

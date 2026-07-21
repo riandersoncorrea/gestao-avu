@@ -19,6 +19,10 @@ describe('isValidTransition — caminho feliz', () => {
 })
 
 describe('isValidTransition — ramificações', () => {
+  it('EM_EXECUCAO → AGUARDANDO_APROVACAO é válida (Contratada envia evidência sem esperar alguém marcar AGUARDANDO_EVIDENCIAS antes)', () => {
+    expect(isValidTransition('EM_EXECUCAO', 'AGUARDANDO_APROVACAO')).toBe(true)
+  })
+
   it('AGUARDANDO_APROVACAO → REPROVADO é válida', () => {
     expect(isValidTransition('AGUARDANDO_APROVACAO', 'REPROVADO')).toBe(true)
   })

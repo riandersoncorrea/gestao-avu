@@ -11,7 +11,7 @@ Duas camadas de teste, porque autorização aqui nunca depende só do frontend:
 npm run test
 ```
 
-103 testes em 7 arquivos.
+108 testes em 9 arquivos.
 
 ### `src/features/auth/permissions.test.ts`
 
@@ -254,3 +254,73 @@ rollback;
 | Segurança Empresarial/Planejamento chamando `avu_transition_status` para `AGUARDANDO_APROVACAO`/`CONCLUIDO`/`REPROVADO` | ❌ erro (reservado às RPCs de Fiscal/Contratada) |
 | Segurança Empresarial/Planejamento chamando `avu_transition_status` para uma transição válida do caminho de planejamento | ✅ sucesso, registrado em `avu_status_history` com comentário |
 | Admin | ✅ qualquer transição, inclusive pulando etapas (bypass do trigger) |
+
+### `src/features/contractors/evidenceTipo.test.ts` e `portalService.test.ts` (Sprint 4)
+
+`detectEvidenceTipo` testa o mapeamento de MIME type (`image/*→foto`, `video/*→video`, resto→`documento`). `getPortalDashboardStats` testa os 6 indicadores do dashboard com uma lista fixa de AVUs cobrindo cada bucket (pendente/em execução/aguardando evidências/concluído/vencido), mais o caso de lista vazia.
+
+## Verificação manual do Portal da Contratada (Sprint 4)
+
+Pré-requisito: uma AVU de teste com `empresa_executante` preenchida e um usuário Contratada dessa mesma empresa. Todos os blocos usam `rollback` — seguro em produção.
+
+```sql
+-- 1) Acesso indevido: Contratada da empresa A não enxerga nem insere evidência
+-- em AVU atribuída à empresa B.
+begin;
+select set_config('request.jwt.claims', json_build_object('sub', '<ID_CONTRATADA_EMPRESA_A>', 'role', 'authenticated')::text, true);
+set local role authenticated;
+select * from public.avu_evidences where avu_id = '<ID_AVU_DA_EMPRESA_B>';
+-- ↑ deve retornar 0 linhas (RLS de select bloqueia can_view_avu)
+insert into public.avu_evidences (avu_id, tipo, arquivo, nome_arquivo, usuario)
+values ('<ID_AVU_DA_EMPRESA_B>', 'foto', 'avus/x/evidences/teste.jpg', 'teste.jpg', '<ID_CONTRATADA_EMPRESA_A>');
+-- ↑ deve FALHAR: violação da policy de insert
+rollback;
+```
+
+```sql
+-- 2) Fiscal/Admin conseguem ver evidências de qualquer AVU que já enxergam
+-- (mesmo sem poder inserir).
+begin;
+select set_config('request.jwt.claims', json_build_object('sub', '<ID_FISCAL_DA_AVU>', 'role', 'authenticated')::text, true);
+set local role authenticated;
+select count(*) from public.avu_evidences where avu_id = '<ID_AVU_ATRIBUIDA_AO_FISCAL>';
+-- ↑ deve retornar as evidências já enviadas pela Contratada
+insert into public.avu_evidences (avu_id, tipo, arquivo, nome_arquivo, usuario)
+values ('<ID_AVU_ATRIBUIDA_AO_FISCAL>', 'foto', 'avus/x/evidences/teste.jpg', 'teste.jpg', '<ID_FISCAL_DA_AVU>');
+-- ↑ deve FALHAR: Fiscal não tem has_role('contratada') nem is_admin()
+rollback;
+```
+
+```sql
+-- 3) avu_submit_evidence exige ao menos uma evidência anexada.
+begin;
+select set_config('request.jwt.claims', json_build_object('sub', '<ID_CONTRATADA>', 'role', 'authenticated')::text, true);
+set local role authenticated;
+select public.avu_submit_evidence('<ID_AVU_SEM_NENHUMA_EVIDENCIA>', null);
+-- ↑ deve FALHAR: "Envie ao menos uma evidência (foto, vídeo ou documento) antes de submeter para aprovação"
+rollback;
+```
+
+```sql
+-- 4) Timeline: Contratada agora vê "AVU criada" mesmo não tendo sido ela quem criou.
+begin;
+select set_config('request.jwt.claims', json_build_object('sub', '<ID_CONTRATADA>', 'role', 'authenticated')::text, true);
+set local role authenticated;
+select action, entity_id from public.audit_logs
+where entity = 'avus' and entity_id = '<ID_AVU_DA_CONTRATADA>' and action = 'avu.created';
+-- ↑ antes da migration 0005, retornava 0 linhas (RLS só deixava ver o próprio ator); agora retorna 1
+rollback;
+```
+
+### Checklist esperado — Portal da Contratada
+
+| Cenário | Resultado esperado |
+|---|---|
+| Contratada da empresa A lendo/inserindo evidência de AVU da empresa B | ❌ bloqueado pela RLS (select e insert) |
+| Fiscal/Admin lendo evidências de uma AVU que já enxergam | ✅ leitura liberada |
+| Fiscal (ou qualquer não-Contratada/não-admin) inserindo evidência | ❌ bloqueado (insert restrito a Contratada/admin, mais estrito que `avu_attachments`) |
+| `avu_submit_evidence` sem nenhuma evidência anexada | ❌ erro explícito |
+| Contratada acessando "AVU criada" no histórico de uma AVU própria | ✅ visível (correção da RLS de `audit_logs`) |
+| Upload real (navegador, logado como Admin — que bypassa a restrição de insert) | ✅ arquivo aparece em `avu_evidences`/Storage, com GPS/equipe/equipamentos preenchidos |
+| Usuário só-Contratada acessando `/` | ✅ redirecionado para `/portal` |
+| Usuário não-Contratada/não-admin acessando `/portal` | ✅ redirecionado para `/` |

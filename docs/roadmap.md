@@ -20,29 +20,29 @@ CRUD completo de AVUs (`supabase/migrations/0003_avus.sql`) com os 10 status do 
 
 Máquina de estados reforçada no Postgres (`supabase/migrations/0004_workflow_and_planning.sql`): trigger `avus_validate_status_transition` bloqueia qualquer transição de `status` fora do grafo permitido (mesmo via `UPDATE` direto, não só pela RPC), com `avu_status_history` registrando ator/data/status anterior/novo/comentário — timeline do detalhe da AVU passou a mesclar isso com `audit_logs`. Nova RPC genérica `avu_transition_status` (ação de planejamento) para o caminho linear NOVO→...→CONCLUIDO, mantendo `avu_submit_evidence`/`avu_review_execution` (Sprint 2) como os únicos caminhos para as transições de Fiscal/Contratada. Adicionado `avus.prioridade` (enum) e indicador de risco calculado (`features/avus/risk.ts`, combina SLA + prioridade + tempo parado no status). Página de Planejamento reescrita com Kanban (11 colunas, incluindo a pipeline Nota SAP → OM → prazo derivada dos campos existentes, mais um catch-all "Vencido") e Tabela, alertas automáticos clicáveis, e filtros de prioridade/risco/coluna/prazo. Ver `docs/database.md` e `docs/testing.md`.
 
-## Sprint 4 — GIS funcional
+## Sprint 4 — Portal da Contratada (concluída)
+
+Área dedicada e simplificada, fora do `MainLayout` corporativo (`src/layouts/PortalLayout.tsx`, rotas `/portal`), antecipada desta posição do roadmap (era a Sprint 8) porque o pedido do usuário veio explícito. Usuário cujo único papel é `contratada` é redirecionado automaticamente para lá; admin acessa ambas as áreas. Dashboard com os 6 indicadores pedidos (`features/contractors/portalService.ts`), lista de AVUs da própria empresa, e — a peça que faltava desde a Sprint 2 — envio real de evidências (fotos/vídeos/documentos) com observações, data de execução, equipe, equipamentos e captura de GPS (`supabase/migrations/0005_contractor_portal.sql`, tabela `avu_evidences`, bucket `avu-evidences`). `avu_submit_evidence` passa a exigir ao menos uma evidência anexada antes de transicionar para `AGUARDANDO_APROVACAO`. Nova aba "Evidências" no detalhe geral da AVU dá ao Fiscal o contexto que faltava para aprovar/reprovar. Ver `docs/database.md` e `docs/testing.md`.
+
+## Sprint 5 — GIS funcional
 
 - Camada vetorial com **todas** as AVUs georreferenciadas sobre o `BaseMap` (hoje o mapa só plota uma AVU por vez, na aba "Localização" do detalhe).
 - Definição do provedor de tiles definitivo (avaliar dados SIG corporativos da Vale vs. provedor externo tipo MapTiler).
 
-## Sprint 5 — Fiscalização (checklists)
+## Sprint 6 — Fiscalização (checklists)
 
 - Checklists estruturados de campo (itens de verificação, não só o par aprovar/reprovar já existente).
-- Ler evidências (fotos já suportadas via `avu_attachments`) com apoio de OCR/IA no futuro (`features/ai`).
+- Ler evidências (`avu_evidences`, Sprint 4, e `avu_attachments`, Sprint 2) com apoio de OCR/IA no futuro (`features/ai`).
 
-## Sprint 6 — Importações
+## Sprint 7 — Importações
 
 - Importação de planilhas/dados externos.
 - Primeiro rascunho de integração SAP PM (`features/sap`, `services/`) — os campos `nota_sap`/`ordem_manutencao` já existem em `avus`.
 
-## Sprint 7 — Relatórios / PDF
+## Sprint 8 — Relatórios / PDF
 
 - Escolher e implementar a geração de PDF (`@react-pdf/renderer` vs. Edge Function + Puppeteer — ver `docs/architecture.md`).
 - Exportação de laudos de fiscalização e relatórios gerenciais a partir dos dados de `avus`/`audit_logs` já existentes.
-
-## Sprint 8 — Portal da contratada
-
-- Área dedicada (fora do `MainLayout` corporativo) para contratadas acompanharem/atualizarem suas próprias AVUs — hoje elas já acessam via `/avus` normal (RLS já restringe à própria empresa), mas uma experiência dedicada e mais simples pode fazer sentido para esse público externo.
 
 ## Depois
 

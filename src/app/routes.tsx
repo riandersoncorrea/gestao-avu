@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { createBrowserRouter } from 'react-router-dom'
 import { MainLayout } from '@/layouts/MainLayout'
+import { PortalLayout } from '@/layouts/PortalLayout'
 import { ROUTES } from '@/lib/routes'
 import { LoadingState } from '@/components/LoadingState'
 import { RequireAdmin, RequireAuth, RequirePermission, RedirectIfAuthenticated } from '@/features/auth/ProtectedRoute'
@@ -20,6 +21,13 @@ const InspectionsPage = lazy(() =>
 const ImportsPage = lazy(() => import('@/pages/ImportsPage').then((m) => ({ default: m.ImportsPage })))
 const ReportsPage = lazy(() => import('@/pages/ReportsPage').then((m) => ({ default: m.ReportsPage })))
 const AdminPage = lazy(() => import('@/pages/AdminPage').then((m) => ({ default: m.AdminPage })))
+const PortalDashboardPage = lazy(() =>
+  import('@/pages/PortalDashboardPage').then((m) => ({ default: m.PortalDashboardPage })),
+)
+const PortalAvusPage = lazy(() => import('@/pages/PortalAvusPage').then((m) => ({ default: m.PortalAvusPage })))
+const PortalAvuDetailPage = lazy(() =>
+  import('@/pages/PortalAvuDetailPage').then((m) => ({ default: m.PortalAvuDetailPage })),
+)
 const LoginPage = lazy(() => import('@/pages/LoginPage').then((m) => ({ default: m.LoginPage })))
 const SignupPage = lazy(() => import('@/pages/SignupPage').then((m) => ({ default: m.SignupPage })))
 const ForgotPasswordPage = lazy(() =>
@@ -75,6 +83,14 @@ export const router = createBrowserRouter([
             element: <RequireAdmin />,
             children: [{ path: ROUTES.admin, element: withSuspense(<AdminPage />) }],
           },
+        ],
+      },
+      {
+        element: <PortalLayout />,
+        children: [
+          { path: ROUTES.portal, element: withSuspense(<PortalDashboardPage />) },
+          { path: `${ROUTES.portal}/avus`, element: withSuspense(<PortalAvusPage />) },
+          { path: `${ROUTES.portal}/avus/:id`, element: withSuspense(<PortalAvuDetailPage />) },
         ],
       },
     ],

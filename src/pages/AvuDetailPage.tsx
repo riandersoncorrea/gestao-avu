@@ -22,13 +22,22 @@ import { AvuLocationMap } from '@/features/avus/components/AvuLocationMap'
 import { AvuAttachments } from '@/features/avus/components/AvuAttachments'
 import { AvuTimeline } from '@/features/avus/components/AvuTimeline'
 import { AvuComments } from '@/features/avus/components/AvuComments'
+import { EvidenceList } from '@/features/contractors/components/EvidenceList'
 import { computeSlaStatus } from '@/features/avus/sla'
 import { StatusTransitionControl } from '@/features/planning/components/StatusTransitionControl'
 import { getPlanningNextStatuses } from '@/features/planning/transitions'
 import { formatDate, formatDateTime } from '@/utils/format'
 import { ROUTES } from '@/lib/routes'
 
-type TabKey = 'resumo' | 'informacoes' | 'localizacao' | 'documentos' | 'fotos' | 'historico' | 'comentarios'
+type TabKey =
+  | 'resumo'
+  | 'informacoes'
+  | 'localizacao'
+  | 'documentos'
+  | 'fotos'
+  | 'evidencias'
+  | 'historico'
+  | 'comentarios'
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'resumo', label: 'Resumo' },
@@ -36,6 +45,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'localizacao', label: 'Localização' },
   { key: 'documentos', label: 'Documentos' },
   { key: 'fotos', label: 'Fotos' },
+  { key: 'evidencias', label: 'Evidências' },
   { key: 'historico', label: 'Histórico' },
   { key: 'comentarios', label: 'Comentários' },
 ]
@@ -244,6 +254,7 @@ export function AvuDetailPage() {
       {tab === 'localizacao' && <AvuLocationMap avu={avu} />}
       {tab === 'documentos' && <AvuAttachments avuId={avu.id} kind="document" />}
       {tab === 'fotos' && <AvuAttachments avuId={avu.id} kind="photo" />}
+      {tab === 'evidencias' && <EvidenceList avuId={avu.id} />}
       {tab === 'historico' && <AvuTimeline avuId={avu.id} />}
       {tab === 'comentarios' && <AvuComments avuId={avu.id} />}
 

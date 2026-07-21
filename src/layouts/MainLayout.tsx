@@ -1,10 +1,19 @@
-import { Outlet } from 'react-router-dom'
+import { Navigate, Outlet } from 'react-router-dom'
 import { useDisclosure } from '@/hooks/useDisclosure'
+import { useAuth } from '@/features/auth/AuthContext'
+import { ROUTES } from '@/lib/routes'
 import { Sidebar } from '@/layouts/Sidebar'
 import { Header } from '@/layouts/Header'
 
 export function MainLayout() {
   const { isOpen, close, toggle } = useDisclosure(false)
+  const { isAdmin, roles } = useAuth()
+
+  // Contratada sem nenhum outro papel tem uma experiência dedicada e mais simples no
+  // Portal — a Sidebar corporativa (9 áreas) não faz sentido para esse público externo.
+  if (!isAdmin && roles.length > 0 && roles.every((role) => role === 'contratada')) {
+    return <Navigate to={ROUTES.portal} replace />
+  }
 
   return (
     <div className="flex min-h-screen bg-gray-50">

@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"/Users/rianderson/Documents/Projetos/AVU\" && git add -A && if git diff --cached --quiet; then true; else MSG=\"Auto-update $(date '+%Y-%m-%d %H:%M:%S')\"; if git commit -q -m \"$MSG\" && git push -q origin main; then echo \"{\\\"systemMessage\\\": \\\"Committed and pushed to GitHub (gestao-avu): $MSG\\\"}\"; else echo \"{\\\"systemMessage\\\": \\\"Auto-commit created locally but push to GitHub failed - check git status/credentials.\\\"}\"; fi; fi",
+            "timeout": 30,
+            "statusMessage": "Syncing changes to GitHub..."
+          }
+        ]
+      }
+    ]
+  }
+}

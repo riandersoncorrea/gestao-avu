@@ -19,6 +19,12 @@ There is no watch-mode script configured; `npx vitest` (no `run`) starts watch m
 
 Local setup: `cp .env.example .env` and fill `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`. Without them the app still boots (points at a placeholder project) but no Supabase call succeeds.
 
+## Git & GitHub sync
+
+This working directory is a git repo tracking `origin` = `https://github.com/riandersoncorrea/gestao-avu` (branch `main`). A `Stop` hook in `.claude/settings.json` runs after every Claude Code turn: it stages all changes, and — only if there's something to commit — commits with an auto-generated timestamp message and pushes to `origin/main`. No-op (silent) when the working tree is already clean.
+
+`.claude/settings.local.json` and `.claude/scheduled_tasks.lock` are gitignored — they're machine-local Claude Code state, not project config.
+
 ## Architecture
 
 Full docs live in `docs/` (`architecture.md`, `database.md`, `design-system.md`, `testing.md`, `roadmap.md`) — read those before making structural changes. The summary below is what you need to not re-derive from scratch.

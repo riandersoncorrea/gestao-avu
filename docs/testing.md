@@ -457,3 +457,29 @@ rollback;
 | Filtro combinado sob volume realista (5000 linhas sintéticas) | ✅ `Index Scan`, não `Seq Scan`; consulta em poucos ms |
 | `avuMatchesBucket` usado tanto pra contar KPI quanto pra filtrar `/avus` (drill-down) | ✅ mesma função, sem lógica duplicada |
 | 9 filtros globais atualizando todos os indicadores juntos | ✅ um único fetch (`listAvusForDashboard`) alimenta tudo |
+
+### `src/features/gis/markerColor.test.ts` (Sprint 7)
+
+15 testes: um por status "puro" mapeado pra sua cor (Novo/Triagem/Planejamento → cinza, Programado → azul, Em Execução/Aguardando Evidências/Aguardando Aprovação → laranja, Concluído → verde), mais os casos de precedência — SLA `vencido` sobrepõe Programado e Em Execução (vira vermelho), SLA `proximo_vencimento` sobrepõe o status bruto (vira amarelo), Concluído nunca aparece como atrasado mesmo com `dataLimite` no passado (status terminal → SLA `encerrado`, sem conflito), Cancelada/Reprovada retornam `null` (fora do mapa), e o caso sem `dataLimite`.
+
+## Verificação manual do mapa de vulnerabilidades (Sprint 7)
+
+Sem migration nova (reaproveita `avu_dashboard_view` da Sprint 6). Testado inserindo, via SQL Editor, 8 AVUs individuais cobrindo cada cor/caso-limite (uma por status-alvo, uma sem `latitude`/`longitude`, uma `CANCELADO`) mais um lote sintético de 30 pontos próximos entre si (mesma técnica de `insert`/`delete` das sprints anteriores, sem transação revertida desta vez porque o teste também precisava validar via app logado — os dados foram apagados manualmente ao final com `delete ... where numero_avu like 'AVU-GIS%'`).
+
+| Cenário pedido | Resultado |
+|---|---|
+| Cada cor de marcador (Cinza/Azul/Laranja/Verde/Vermelho/Amarelo) | ✅ confirmado visualmente, uma AVU de teste por cor |
+| AVU sem coordenadas | ✅ fora do mapa, presente na tabela |
+| AVU Cancelada | ✅ fora do mapa, presente na tabela |
+| Clique no marcador → painel lateral | ✅ número/fotos/descrição/categoria/responsável/prazo/status/OM/nota/empresa/fiscal corretos |
+| "Abrir detalhes" no painel | ✅ navega para `/avus/:id` |
+| Clique numa AVU na tabela → mapa centraliza | ✅ `flyTo` funciona, marcador realçado (`circle-stroke`) |
+| Clustering com muitos pontos próximos (30 sintéticos) | ✅ agrupa em bolha com contagem, expande em zoom progressivo até virar pontos individuais |
+| 9 filtros atualizando mapa + tabela juntos | ✅ testado com filtro de Status; mapa e tabela convergem pro mesmo subconjunto |
+| Toggle Marcadores ↔ Mapa de calor | ✅ (depois do fix de vazamento de camada, ver abaixo) alterna limpo, sem sobreposição |
+| Responsividade mobile (390×844) | ✅ filtros empilham em coluna única, painel lateral vira drawer full-width com backdrop |
+
+**Dois bugs encontrados e corrigidos nesta verificação** (nenhum deles no `markerColor.ts`, que já estava correto e testado — os dois eram em `BaseMap.tsx`):
+
+1. **Clustering nunca renderizava.** `BaseMap` esperava `map.isStyleLoaded()`/evento `load` do MapLibre antes de adicionar a fonte GeoJSON clusterizada — mas esse evento só dispara quando **todos** os tiles/glyphs do style base terminam de carregar, o que pode nunca acontecer numa rede lenta/instável (confirmado com `map.style._loaded === true` mas `map.isStyleLoaded() === false` minutos depois, e `map.addSource(...)` funcionando normalmente quando chamado direto). O mesmo padrão já existia no mapa de calor desde a Sprint 6. Corrigido: as duas camadas tentam adicionar a fonte direto (dentro de um `try/catch`) e, se o style ainda não aceitar, tentam de novo no próximo evento `styledata` — sem depender de `load`.
+2. **Vazamento de camada ao trocar de aba.** Alternar Marcadores → Mapa de calor não removia a camada de clustering anterior (e vice-versa), deixando as duas sobrepostas no mapa. Corrigido: cada efeito (`heatmapPoints`/`clusteredMarkers`) agora remove sua própria fonte/camadas quando a prop correspondente deixa de ser passada.

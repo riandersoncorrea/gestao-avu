@@ -20,6 +20,8 @@ export interface DataTableProps<T> {
   emptyMessage?: string
   pageSize?: number
   onRowClick?: (row: T) => void
+  /** Classe extra por linha (ex.: realçar a linha selecionada) — opcional, não afeta usos existentes. */
+  getRowClassName?: (row: T) => string | undefined
 }
 
 export function DataTable<T>({
@@ -30,6 +32,7 @@ export function DataTable<T>({
   emptyMessage = 'Nenhum registro encontrado.',
   pageSize = 10,
   onRowClick,
+  getRowClassName,
 }: DataTableProps<T>) {
   const [page, setPage] = useState(1)
   const pageCount = Math.max(1, Math.ceil(data.length / pageSize))
@@ -58,7 +61,7 @@ export function DataTable<T>({
             <TableRow
               key={getRowId(row)}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
-              className={onRowClick ? 'cursor-pointer' : undefined}
+              className={cn(onRowClick && 'cursor-pointer', getRowClassName?.(row))}
             >
               {columns.map((column) => (
                 <TableCell key={column.key} className={column.className}>

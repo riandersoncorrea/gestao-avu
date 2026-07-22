@@ -305,6 +305,19 @@ Fila de importação inteligente de PDFs (Sprint 9). Ver `docs/architecture.md` 
 - RPC `avu_import_retry(p_import_id)` — reseta `ERRO` de volta pra `AGUARDANDO`.
 - RPC `avu_import_confirm_create_avu(p_import_id, p_fields, p_categoria, p_subcategoria)` — cria a linha real em `avus` a partir dos campos extraídos/editados (só a parte de banco; storage é responsabilidade da Edge Function), grava `audit_logs` + `avu_import_logs`.
 
+## Migration `0009_sap_imports.sql`
+
+Integração SAP (Sprint 9, segunda parte) — importação de arquivos exportados do SAP (CSV/XLSX), **não conexão direta com o SAP** (fora de escopo desta sprint). Ver `docs/architecture.md` ("Integração SAP") e `docs/testing.md` para o fluxo completo.
+
+- `sap_import_status` enum: `PROCESSANDO | PROCESSADO | ERRO`.
+- `sap_imports` — uma linha por arquivo importado: `file_name`, `file_type` (`csv`/`xlsx`), `regex_pattern` (o padrão usado nesta importação, gravado para auditoria/reprodutibilidade — não existe uma tabela de configuração separada para isso), contadores (`total_records`/`matched_count`/`unmatched_count`/`duplicate_count`/`error_count`).
+- `sap_records` — uma linha por linha do arquivo importado: campos brutos do SAP (`nota`, `om`, `status_sap`, `centro`, `data_planejada`, `data_execucao`, `prioridade_sap`, `descricao` — **nunca confundir com os campos internos de `avus`**, o workflow interno não é sobrescrito por esta importação), `avu_numero_extraido` (via regex, calculado no client), `avu_id` (nullable, `on delete set null`) e `match_status` (`RELACIONADO | AVU_NAO_ENCONTRADO | DUPLICADO | ERRO`).
+- `normalize_avu_numero(text)` — remove tudo que não é letra/dígito e uppercasa, para comparar `avus.numero_avu` (formato interno, ex. `AVU-2026-0041`) com o número extraído da descrição do SAP (ex. `AVU2026004155`) por **match exato normalizado** — decisão deliberada por segurança (sem isso, um match "flexível"/`ilike` correria risco de ligar a AVU errada).
+- RPC `sap_import_start(p_import_id, p_file_name, p_file_type, p_regex_pattern)` — registra a linha da fila (status `PROCESSANDO`); `id` gerado no cliente, mesmo padrão de `avu_import_start`.
+- RPC `sap_import_process_batch(p_import_id, p_records jsonb)` — processa o lote inteiro (já parseado no client — CSV/XLSX não envolve segredo, então **não precisa de Edge Function** aqui, diferente da importação de PDF) numa única chamada: duplicata por `nota` já vista (nesta importação ou em qualquer anterior) → `DUPLICADO`; sem número extraído → `AVU_NAO_ENCONTRADO`; com número mas sem AVU correspondente → `AVU_NAO_ENCONTRADO`; com AVU correspondente → atualiza **apenas** `avus.nota_sap`/`avus.ordem_manutencao` (nunca Status/Prioridade/Datas — essas ficam só em `sap_records`, para referência) e marca `RELACIONADO`. Cada linha tem sua própria captura de exceção (`begin...exception when others...end` aninhada no loop) — uma linha malformada vira `ERRO` sem abortar o lote.
+- RPC `sap_import_retry(p_import_id, p_regex_pattern default null)` — reaplica o casamento sobre os `sap_records` já salvos (não reimporta o arquivo); aceita opcionalmente um novo padrão de regex, que fica persistido em `sap_imports.regex_pattern`.
+- RLS: mesma régua de `avu_imports` (`is_admin() or has_permission('avus.view_all') or has_permission('avus.create')` para leitura; `is_admin() or has_permission('avus.create')` para escrita).
+
 ## Convenções para próximas migrations
 
 - Uma migration por mudança de schema coesa, nomeada `NNNN_descricao.sql`.

@@ -25,6 +25,10 @@ const ImportsPage = lazy(() => import('@/pages/ImportsPage').then((m) => ({ defa
 const ImportReviewPage = lazy(() =>
   import('@/pages/ImportReviewPage').then((m) => ({ default: m.ImportReviewPage })),
 )
+const SapImportPage = lazy(() => import('@/pages/SapImportPage').then((m) => ({ default: m.SapImportPage })))
+const SapImportDetailPage = lazy(() =>
+  import('@/pages/SapImportDetailPage').then((m) => ({ default: m.SapImportDetailPage })),
+)
 const ReportsPage = lazy(() => import('@/pages/ReportsPage').then((m) => ({ default: m.ReportsPage })))
 const AdminPage = lazy(() => import('@/pages/AdminPage').then((m) => ({ default: m.AdminPage })))
 const PortalDashboardPage = lazy(() =>
@@ -94,6 +98,8 @@ export const router = createBrowserRouter([
             children: [
               { path: ROUTES.imports, element: withSuspense(<ImportsPage />) },
               { path: `${ROUTES.imports}/:id`, element: withSuspense(<ImportReviewPage />) },
+              { path: ROUTES.sapImports, element: withSuspense(<SapImportPage />) },
+              { path: `${ROUTES.sapImports}/:id`, element: withSuspense(<SapImportDetailPage />) },
             ],
           },
           { path: ROUTES.reports, element: withSuspense(<ReportsPage />) },

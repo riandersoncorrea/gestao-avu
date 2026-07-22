@@ -45,13 +45,11 @@ Tela dedicada de análise do Fiscal (`pages/InspectionsPage.tsx` — fila por bu
 - Checklists estruturados de campo (itens de verificação, além do par aprovar/reprovar/complementação já existente desde a Sprint 5).
 - Ler evidências (`avu_evidences`, Sprint 4, e `avu_attachments`, Sprint 2) com apoio de OCR/IA no futuro (`features/ai`).
 
-## Sprint 9 — Importações (PDF concluído; planilhas/SAP pendentes)
+## Sprint 9 — Importações (PDF + SAP concluídos)
 
 `pages/ImportsPage.tsx` (rota `/importacoes`, agora atrás de `RequirePermission permission="avus.create"` — antes não tinha guarda nenhuma) deixou de ser o placeholder da Sprint 0 e virou a importação inteligente de PDFs pedida: upload individual ou em lote (drag-and-drop + seletor), fila de processamento (`avu_imports`, migration `0008`) com os 5 estados pedidos, pipeline PDF→OCR→extração de texto→extração de campos→extração de imagens→classificação IA→validação→criação do AVU rodando num Supabase Edge Function novo (`supabase/functions/process-avu-import/`, a primeira function do projeto), tela de revisão (`pages/ImportReviewPage.tsx`) para os casos com confiança abaixo de 80%. Ver `docs/database.md` (migration `0008`) e `docs/testing.md` (inclui as limitações conhecidas de calibração contra um PDF real).
 
-Ainda pendente, como próximo incremento do mesmo épico "Importações":
-- Importação de planilhas/dados externos.
-- Primeiro rascunho de integração SAP PM (`features/sap`, `services/`) — os campos `nota_sap`/`ordem_manutencao` já existem em `avus`.
+Segunda parte do mesmo épico, integração SAP: `pages/SapImportPage.tsx`/`SapImportDetailPage.tsx` (rotas `/importacao-sap` e `/importacao-sap/:id`, mesma régua de permissão) implementam a importação de arquivos **exportados** do SAP (CSV/XLSX — não conexão direta, fora de escopo), com extração automática do número da AVU da descrição via regex configurável, relacionamento SAP→AVU por match exato normalizado (`sap_imports`/`sap_records`, migration `0009`), tela de inconsistências (processados/relacionados/não relacionados/duplicados/erros) e reprocessamento. Diferente do PDF, roda 100% no client (`papaparse`/`exceljs`) — sem Edge Function. Testado de ponta a ponta (CSV, XLSX, duplicidade dentro e entre lotes, AVU inexistente, atualização de `nota_sap`/`ordem_manutencao`, reprocessamento). Ver `docs/database.md` (migration `0009`) e `docs/architecture.md` ("Integração SAP").
 
 ## Sprint 10 — Relatórios / PDF
 

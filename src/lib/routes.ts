@@ -6,6 +6,7 @@ export const ROUTES = {
   contractors: '/contratadas',
   inspections: '/fiscalizacao',
   imports: '/importacoes',
+  sapImports: '/importacao-sap',
   reports: '/relatorios',
   admin: '/administracao',
   portal: '/portal',

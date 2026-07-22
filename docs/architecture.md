@@ -51,6 +51,18 @@ A `getAIProvider()` factory escolhe pela presença do secret; sem chave configur
 
 O pipeline (PDF → OCR/extração de texto → extração de campos → extração de imagens → classificação IA → validação → criação do AVU) roda inteiro dentro da function, autenticado com o JWT de quem chamou (a mesma disciplina das RPCs `security definer`: a function nunca confia só em quem conseguiu invocá-la). A AVU real só é criada em `avus` quando a validação passa (confiança ≥ 80%) ou quando um humano confirma na tela de revisão (`pages/ImportReviewPage.tsx`) — os arquivos ficam num bucket de staging (`avu-import-staging`) até esse momento, e o PDF final + imagens extraídas viram `avu_attachments` normais (mesmo bucket/tabela da Sprint 2).
 
+### Integração SAP — importação de arquivo, preparado para API/OData/BTP depois (Sprint 9)
+
+`src/features/sap/` implementa o MVP pedido: importação de arquivos **exportados** do SAP (CSV/XLSX) — **não conexão direta com o SAP** (fora de escopo desta sprint). Diferença importante em relação à importação de PDF: parsing de CSV/XLSX não envolve nenhum segredo, então roda **inteiro no navegador** (`papaparse` para CSV, `exceljs` para XLSX) — não precisa de Edge Function nem de chave de API.
+
+- **`extractAvuNumero(descricao, pattern)`** — função pura que extrai o número da AVU da descrição do SAP via regex configurável (padrão `AVU[0-9A-Z]+`, ajustável na própria página de importação). O padrão efetivamente usado fica gravado em `sap_imports.regex_pattern` por importação, para auditoria/reprodutibilidade.
+- **`parsers/csv.ts`/`parsers/xlsx.ts`** — convergem para a mesma forma normalizada (`SapParsedRow`), mapeando variações de cabeçalho (`HEADER_ALIASES` em `parsers/shared.ts`) para os 8 campos pedidos (Nota/OM/Status/Centro/Data Planejada/Data Execução/Prioridade/Descrição).
+- **Relacionamento SAP → AVU por match exato normalizado**: `normalize_avu_numero()` (Postgres) remove tudo que não é letra/dígito e uppercasa antes de comparar — decisão deliberada em vez de match "flexível"/`ilike`, para não arriscar ligar a AVU errada (ver `docs/database.md`, migration `0009`).
+- **Atualização de AVU é restrita**: só `nota_sap`/`ordem_manutencao` são sobrescritos quando um match é encontrado — Status/Centro/Datas/Prioridade do SAP ficam só em `sap_records`, nunca sobrescrevem o workflow interno da AVU (que já tem sua própria lógica de status/SLA/risco).
+- **Duplicata = mesma "Nota" já vista**, nesta importação ou em qualquer anterior — a RPC `sap_import_process_batch` processa o lote inteiro numa chamada, com captura de exceção por linha (uma linha malformada vira `ERRO` sem derrubar o lote), mesmo espírito de resiliência do pipeline de PDF.
+- **Reprocessamento** (`sap_import_retry`) reaplica o casamento sobre os `sap_records` já salvos, sem reimportar o arquivo — útil depois de ajustar o regex ou quando mais AVUs passam a existir.
+- **Preparado para o futuro, não construído especulativamente**: SAP API/OData/SAP BTP/integração corporativa continuam sem cliente HTTP nenhum — quando existir uma dessas integrações de verdade, o padrão de service (`sapImportService.ts`) e a RPC de casamento (`sap_import_process_batch`) já dão o contrato de dados esperado; só muda a origem dos registros (arquivo → API).
+
 ### Supabase
 
 `src/lib/supabase.ts` cria o client a partir de `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` (ver `.env.example`). Sem essas variáveis, o app ainda sobe (aponta para um projeto placeholder), mas nenhuma chamada de rede funciona de verdade. Desde a Sprint 2, o Storage também é usado de verdade (bucket `avu-attachments` — ver `docs/database.md`), não só o Postgres/Auth.
@@ -83,7 +95,7 @@ Mesmo princípio da Sprint 1 ("nunca confiar só no frontend"), estendido para a
 
 | Integração | Onde vive | Status |
 |---|---|---|
-| SAP PM | `src/features/sap/` | pasta reservada |
+| SAP PM | `src/features/sap/` | implementado: importação de arquivo (CSV/XLSX). API/OData/BTP — próximo passo, mesma interface de dados |
 | APIs corporativas | `src/services/` | um service por integração, seguindo o padrão de `profileService.ts` |
 | OCR / IA | `supabase/functions/process-avu-import/lib/` (classificação) | implementado para importação de PDF (Sprint 9) — abstração `AIProvider`, ver seção abaixo |
 | GIS avançado | `src/features/gis/` | mapa base já funcional, camadas de dados na próxima sprint |

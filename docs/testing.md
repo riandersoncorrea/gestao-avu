@@ -523,3 +523,28 @@ Sem migration nova (reaproveita `avu_dashboard_view` da Sprint 6). Testado inser
 **Bug encontrado e corrigido nesta verificação**: `categoria_sugerida`/`subcategoria_sugerida` são colunas de texto livre, não um enum no banco — a tela de revisão fazia `AVU_IMPORT_SUBCATEGORIES[categoria].map(...)` assumindo que o valor vindo do banco sempre bate exatamente com uma das 4 chaves da taxonomia. Um valor levemente diferente (achado ao testar com dados sem acentuação) quebrava a página inteira (`Cannot read properties of undefined (reading 'map')`). Isso é um risco real também para o `OpenAIProvider` (resposta de LLM é texto livre, pode parafrasear/variar acentuação). Corrigido nos dois lugares: `ImportReviewPage.tsx` valida contra `AVU_IMPORT_CATEGORIES`/`AVU_IMPORT_SUBCATEGORIES` antes de usar, caindo em `OUTROS`/primeira subcategoria se o valor não bater; `aiProviders.ts` faz a mesma validação na resposta da OpenAI antes de retornar.
 
 Dados de teste (linhas `avu_imports` + arquivos no bucket de staging) removidos ao final.
+
+## `src/features/sap/extractAvuNumero.test.ts` (Sprint 9 — integração SAP)
+
+8 testes, função pura sem rede: exemplo exato do pedido (`"AVU2026004155 - Recuperação de Cerca"` → `"AVU2026004155"`); número no meio da string; case-insensitivo com normalização para maiúsculas; descrição `null`/vazia retorna `null`; padrão de regex customizado funciona; padrão de regex inválido não lança exceção (retorna `null`); padrão default é exportado e usado quando nenhum é passado.
+
+## Verificação manual da integração SAP (Sprint 9)
+
+Diferente da importação de PDF, esta parte **não depende de Edge Function** (parsing de CSV/XLSX não envolve segredo, roda 100% no navegador) — por isso pôde ser testada de ponta a ponta de verdade nesta sessão, sem bloqueio de deploy.
+
+**O que foi verificado:**
+
+| Cenário pedido | Resultado |
+|---|---|
+| Migration `0009` (tabelas, tipos, RPCs, policies) | ✅ aplicada e verificada via `information_schema`/`pg_policies`/`pg_type` — 2 tabelas, 2 tipos enum, 4 funções, 6 policies |
+| Importar CSV | ✅ arquivo com 2 linhas (1 com número de AVU válido, 1 sem correspondência) — `total=2, relacionados=1, não_encontrados=1` |
+| Importar XLSX | ✅ mesmo cenário via `.xlsx` gerado com `exceljs` — `total=2, relacionados=1, não_encontrados=1`, parser lê célula e formata igual ao CSV |
+| Extração automática do número da AVU da descrição | ✅ regex default `AVU[0-9A-Z]+` extraiu corretamente de `"AVU2026004155 - Recuperação de Cerca"` |
+| AVU inexistente | ✅ número extraído sem `avus.numero_avu` correspondente → `AVU_NAO_ENCONTRADO` |
+| Atualização de AVU relacionada | ✅ AVU de teste semeada com `numero_avu = 'AVU-2026-004155'` (normaliza para `AVU2026004155`, batendo com o exemplo do pedido) — após import, `nota_sap`/`ordem_manutencao` confirmados atualizados via SQL direto; Status/Prioridade da AVU **não** foram tocados (ficam só em `sap_records`) |
+| Duplicidade — mesma Nota em importações diferentes | ✅ reenviar um arquivo com Notas já vistas em import anterior → ambas as linhas caem em `DUPLICADO` (checagem é global, não só dentro do mesmo arquivo) |
+| Duplicidade — mesma Nota dentro do mesmo arquivo | ✅ CSV com a Nota repetida na 3ª linha → linha adicional cai em `DUPLICADO` |
+| Tela de inconsistências | ✅ 5 KPIs (processados/relacionados/não relacionados/duplicados/erros) batendo com os totais; abas de filtro por `match_status`; link clicável para a AVU relacionada |
+| Reprocessamento | ✅ botão "Reprocessar" reexecuta o casamento sobre os `sap_records` já salvos, sem reimportar o arquivo — resultado consistente mantido |
+
+Dados de teste (`sap_imports`/`sap_records` das 4 importações de teste, mais a AVU semeada `AVU-2026-004155`) removidos ao final — `sap_records` some via `on delete cascade` ao apagar `sap_imports`.

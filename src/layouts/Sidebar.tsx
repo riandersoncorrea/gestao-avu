@@ -1,5 +1,6 @@
 import {
   ClipboardCheck,
+  Database,
   FileBarChart,
   HardHat,
   LayoutDashboard,
@@ -32,6 +33,7 @@ const NAV_ITEMS: NavItem[] = [
 
 const INSPECTIONS_ITEM: NavItem = { label: 'Fiscalização', path: ROUTES.inspections, icon: ClipboardCheck }
 const IMPORTS_ITEM: NavItem = { label: 'Importações', path: ROUTES.imports, icon: Upload }
+const SAP_IMPORTS_ITEM: NavItem = { label: 'Importação SAP', path: ROUTES.sapImports, icon: Database }
 const ADMIN_ITEM: NavItem = { label: 'Administração', path: ROUTES.admin, icon: Settings }
 
 export interface SidebarProps {
@@ -45,7 +47,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const navItems = [
     ...NAV_ITEMS,
     ...(isAdmin || hasPermission('evidence.analyze') ? [INSPECTIONS_ITEM] : []),
-    ...(isAdmin || hasPermission('avus.create') ? [IMPORTS_ITEM] : []),
+    ...(isAdmin || hasPermission('avus.create') ? [IMPORTS_ITEM, SAP_IMPORTS_ITEM] : []),
     ...(isAdmin ? [ADMIN_ITEM] : []),
   ]
 

@@ -30,6 +30,10 @@ const SapImportDetailPage = lazy(() =>
   import('@/pages/SapImportDetailPage').then((m) => ({ default: m.SapImportDetailPage })),
 )
 const ReportsPage = lazy(() => import('@/pages/ReportsPage').then((m) => ({ default: m.ReportsPage })))
+const AuditLogPage = lazy(() => import('@/pages/AuditLogPage').then((m) => ({ default: m.AuditLogPage })))
+const NotificationsPage = lazy(() =>
+  import('@/pages/NotificationsPage').then((m) => ({ default: m.NotificationsPage })),
+)
 const AdminPage = lazy(() => import('@/pages/AdminPage').then((m) => ({ default: m.AdminPage })))
 const PortalDashboardPage = lazy(() =>
   import('@/pages/PortalDashboardPage').then((m) => ({ default: m.PortalDashboardPage })),
@@ -103,6 +107,11 @@ export const router = createBrowserRouter([
             ],
           },
           { path: ROUTES.reports, element: withSuspense(<ReportsPage />) },
+          { path: ROUTES.notifications, element: withSuspense(<NotificationsPage />) },
+          {
+            element: <RequirePermission permission="history.view" />,
+            children: [{ path: ROUTES.auditLog, element: withSuspense(<AuditLogPage />) }],
+          },
           {
             element: <RequireAdmin />,
             children: [{ path: ROUTES.admin, element: withSuspense(<AdminPage />) }],

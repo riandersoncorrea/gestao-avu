@@ -5,8 +5,8 @@ Arquivos de logo usados pela aplicação. Importados como módulos ES (`import l
 ## Arquivos
 
 - `sao-luis-efc-logo.png` — logo oficial "Serviços Operacionais São Luís EFC" (arquivo real, fornecido pelo usuário).
-- `vale-logo.placeholder.svg` — **placeholder**. Não há arquivo isolado da logo Vale disponível ainda (só aparece embutida em um template/print). Substitua por `vale-logo.svg` (ou `.png`) oficial em alta resolução assim que disponível, e atualize os imports que referenciam `vale-logo.placeholder.svg` em:
-  - `src/layouts/Sidebar.tsx` (se for adicionada ao rodapé/cabeçalho)
+- `vale-logo.placeholder.png` — **placeholder**. Substitua pela logo Vale oficial em alta resolução assim que disponível, e atualize os imports que referenciam `vale-logo.placeholder.png` em:
+  - `src/layouts/Header.tsx`
   - `src/pages/LoginPage.tsx`
 
 ## Como substituir

@@ -1,13 +1,27 @@
+import { useEffect } from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import { useDisclosure } from '@/hooks/useDisclosure'
 import { useAuth } from '@/features/auth/AuthContext'
 import { ROUTES } from '@/lib/routes'
 import { Sidebar } from '@/layouts/Sidebar'
 import { Header } from '@/layouts/Header'
+import { generateDeadlineNotifications } from '@/services/notificationService'
+import { shouldRunDeadlineCheck } from '@/features/avus/deadlineCheckThrottle'
+
+const DEADLINE_CHECK_STORAGE_KEY = 'avu.lastDeadlineCheckAt'
 
 export function MainLayout() {
   const { isOpen, close, toggle } = useDisclosure(false)
   const { isAdmin, roles } = useAuth()
+
+  useEffect(() => {
+    const stored = localStorage.getItem(DEADLINE_CHECK_STORAGE_KEY)
+    const lastRunAt = stored ? Number(stored) : null
+    if (!shouldRunDeadlineCheck(lastRunAt)) return
+
+    localStorage.setItem(DEADLINE_CHECK_STORAGE_KEY, String(Date.now()))
+    generateDeadlineNotifications().catch(() => {})
+  }, [])
 
   // Contratada sem nenhum outro papel tem uma experiência dedicada e mais simples no
   // Portal — a Sidebar corporativa (9 áreas) não faz sentido para esse público externo.

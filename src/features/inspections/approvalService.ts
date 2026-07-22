@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { listProfileOptions } from '@/services/profileService'
 import type { Avu, AvuPriority, AvuProfileRef, AvuStatus } from '@/features/avus/types'
-import type { ApprovalDecision, FiscalizacaoBucket } from './types'
+import type { ApprovalDecision, AvuApproval, FiscalizacaoBucket } from './types'
 
 /**
  * Traduz cada bucket da página de Fiscalização num filtro sobre `avu_fiscalizacao_view`.
@@ -105,4 +105,39 @@ export async function reviewEvidence(avuId: string, decision: ApprovalDecision, 
     p_comment: comment ?? null,
   })
   if (error) throw error
+}
+
+interface RawApprovalRow {
+  id: string
+  avu_id: string
+  fiscal_id: string | null
+  decision: ApprovalDecision
+  comment: string | null
+  created_at: string
+  fiscal: { full_name: string } | null
+}
+
+export interface AvuApprovalWithFiscal extends AvuApproval {
+  fiscalName: string
+}
+
+/** Decisões de fiscalização de uma AVU — usado pela linha do tempo completa (`AvuTimeline`). */
+export async function listApprovals(avuId: string): Promise<AvuApprovalWithFiscal[]> {
+  const { data, error } = await supabase
+    .from('avu_approvals')
+    .select('id, avu_id, fiscal_id, decision, comment, created_at, fiscal:profiles(full_name)')
+    .eq('avu_id', avuId)
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+
+  return (data as unknown as RawApprovalRow[]).map((row) => ({
+    id: row.id,
+    avuId: row.avu_id,
+    fiscalId: row.fiscal_id,
+    decision: row.decision,
+    comment: row.comment,
+    createdAt: row.created_at,
+    fiscalName: row.fiscal?.full_name ?? 'Usuário removido',
+  }))
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ClipboardCheck, Pencil, Trash2 } from 'lucide-react'
@@ -14,6 +14,7 @@ import { useToast } from '@/components/Toast'
 import { useDisclosure } from '@/hooks/useDisclosure'
 import { useAuth } from '@/features/auth/AuthContext'
 import { deleteAvu, getAvuById, getStatusSince, submitEvidence } from '@/features/avus/avuService'
+import { logAvuAccessOnce } from '@/services/auditLogService'
 import { AvuStatusBadge } from '@/features/avus/components/AvuStatusBadge'
 import { SlaBadge } from '@/features/avus/components/SlaBadge'
 import { PriorityBadge } from '@/features/avus/components/PriorityBadge'
@@ -64,6 +65,10 @@ export function AvuDetailPage() {
 
   const avuQuery = useQuery({ queryKey: ['avus', id], queryFn: () => getAvuById(id!) })
   const statusSinceQuery = useQuery({ queryKey: ['avus', id, 'status-since'], queryFn: () => getStatusSince(id!) })
+
+  useEffect(() => {
+    if (id) logAvuAccessOnce(id)
+  }, [id])
 
   function invalidateAvu() {
     queryClient.invalidateQueries({ queryKey: ['avus', id] })

@@ -1,9 +1,9 @@
-import { Menu } from 'lucide-react'
-import valeLogoPlaceholder from '@/assets/branding/vale-logo.placeholder.svg'
-import { NotificationsBell } from '@/components/NotificationsBell'
+import { Menu } from "lucide-react";
+import valeLogoPlaceholder from "@/assets/branding/vale-logo.placeholder.png";
+import { NotificationsBell } from "@/components/NotificationsBell";
 
 export interface HeaderProps {
-  onMenuClick: () => void
+  onMenuClick: () => void;
 }
 
 export function Header({ onMenuClick }: HeaderProps) {
@@ -19,15 +19,23 @@ export function Header({ onMenuClick }: HeaderProps) {
           <Menu className="size-5" />
         </button>
         <div>
-          <p className="text-sm font-semibold text-graphite-800">Gestão de AVU</p>
-          <p className="text-xs text-gray-500">Serviços Operacionais São Luís EFC</p>
+          <p className="text-sm font-semibold text-graphite-800">
+            Gestão de AVU
+          </p>
+          <p className="text-xs text-gray-500">
+            Serviços Operacionais São Luís EFC
+          </p>
         </div>
       </div>
 
       <div className="flex items-center gap-4">
         <NotificationsBell />
-        <img src={valeLogoPlaceholder} alt="Vale" className="hidden h-6 w-auto sm:block" />
+        <img
+          src={valeLogoPlaceholder}
+          alt="Vale"
+          className="hidden h-6 w-auto sm:block"
+        />
       </div>
     </header>
-  )
+  );
 }

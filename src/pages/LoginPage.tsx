@@ -8,7 +8,7 @@ import { Input } from '@/components/Input'
 import { signIn } from '@/features/auth/authService'
 import { ROUTES } from '@/lib/routes'
 import saoLuisEfcLogo from '@/assets/branding/sao-luis-efc-logo.png'
-import valeLogoPlaceholder from '@/assets/branding/vale-logo.placeholder.svg'
+import valeLogoPlaceholder from '@/assets/branding/vale-logo.placeholder.png'
 
 const loginSchema = z.object({
   email: z.string().min(1, 'Informe seu e-mail').email('E-mail inválido'),

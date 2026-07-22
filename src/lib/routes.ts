@@ -8,6 +8,8 @@ export const ROUTES = {
   imports: '/importacoes',
   sapImports: '/importacao-sap',
   reports: '/relatorios',
+  auditLog: '/auditoria',
+  notifications: '/notificacoes',
   admin: '/administracao',
   portal: '/portal',
   login: '/login',

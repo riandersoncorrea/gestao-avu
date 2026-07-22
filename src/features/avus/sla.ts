@@ -10,7 +10,8 @@ export interface SlaInfo {
 }
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24
-const WARNING_THRESHOLD_DAYS = 3
+/** Também replicado em SQL puro por `avu_generate_deadline_notifications` (migration 0010) — mantenha os dois em sincronia. */
+export const WARNING_THRESHOLD_DAYS = 3
 const TERMINAL_STATUSES: AvuStatus[] = ['CONCLUIDO', 'REPROVADO', 'CANCELADO']
 
 function startOfDay(date: Date): Date {

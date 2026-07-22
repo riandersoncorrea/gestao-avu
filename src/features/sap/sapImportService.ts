@@ -105,6 +105,18 @@ export async function listRecords(sapImportId: string, matchStatus?: SapRecordMa
   return (data as unknown as RawSapRecordRow[]).map(fromRecordRow)
 }
 
+/** Registros SAP vinculados a uma AVU específica — usado pela linha do tempo completa (`AvuTimeline`). */
+export async function listRecordsForAvu(avuId: string): Promise<SapRecord[]> {
+  const { data, error } = await supabase
+    .from('sap_records')
+    .select(RECORD_SELECT)
+    .eq('avu_id', avuId)
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return (data as unknown as RawSapRecordRow[]).map(fromRecordRow)
+}
+
 /** Registra o import (status PROCESSANDO) — chamado logo após o parsing do arquivo no navegador. */
 export async function startImport(importId: string, fileName: string, fileType: 'csv' | 'xlsx', regexPattern: string): Promise<void> {
   const { error } = await supabase.rpc('sap_import_start', {

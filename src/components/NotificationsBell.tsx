@@ -7,6 +7,7 @@ import { listMyNotifications, markAllAsRead, markAsRead } from '@/services/notif
 import { useDisclosure } from '@/hooks/useDisclosure'
 import { formatDateTime } from '@/utils/format'
 import { cn } from '@/lib/utils'
+import { ROUTES } from '@/lib/routes'
 import type { AppNotification } from '@/types'
 
 export function NotificationsBell() {
@@ -110,6 +111,17 @@ export function NotificationsBell() {
               </ul>
             )}
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              close()
+              navigate(ROUTES.notifications)
+            }}
+            className="block w-full border-t border-gray-100 px-4 py-2.5 text-center text-xs font-medium text-primary-600 hover:bg-gray-50"
+          >
+            Ver todas as notificações
+          </button>
         </div>
       )}
     </div>

@@ -1,17 +1,33 @@
 import { useQuery } from '@tanstack/react-query'
-import { CheckCircle2, Circle, FileEdit, RefreshCcw, Send, ShieldAlert, XCircle } from 'lucide-react'
+import { Camera, CheckCircle2, Circle, FileEdit, FileText, FileUp, Link2, RefreshCcw, Send, ShieldAlert, Video, XCircle } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { LoadingState } from '@/components/LoadingState'
 import { EmptyState } from '@/components/EmptyState'
 import { listAuditLogsForEntity } from '@/services/auditLogService'
+import { listEvidences } from '@/features/contractors/evidenceService'
+import { listRecordsForAvu } from '@/features/sap/sapImportService'
 import { formatDateTime } from '@/utils/format'
+import { describeAuditChanges } from '../describeAuditChanges'
 import { listStatusHistory } from '../avuService'
 import { avuStatusLabel } from './AvuStatusBadge'
 import type { AvuStatus } from '../types'
+import type { EvidenceTipo } from '@/features/contractors/types'
 
 const ACTION_CONFIG: Record<string, { label: string; icon: LucideIcon }> = {
   'avu.created': { label: 'AVU criada', icon: Circle },
-  'avu.updated': { label: 'Dados atualizados', icon: FileEdit },
+  'avu_import.confirm': { label: 'AVU criada via importação de PDF', icon: FileUp },
+}
+
+const EVIDENCE_ICON: Record<EvidenceTipo, LucideIcon> = {
+  foto: Camera,
+  video: Video,
+  documento: FileText,
+}
+
+const EVIDENCE_LABEL: Record<EvidenceTipo, string> = {
+  foto: 'Evidência enviada (foto)',
+  video: 'Evidência enviada (vídeo)',
+  documento: 'Evidência enviada (documento)',
 }
 
 interface TimelineEntry {
@@ -48,17 +64,37 @@ export function AvuTimeline({ avuId }: { avuId: string }) {
     queryKey: ['avus', avuId, 'status-history'],
     queryFn: () => listStatusHistory(avuId),
   })
+  const evidencesQuery = useQuery({
+    queryKey: ['avus', avuId, 'evidences'],
+    queryFn: () => listEvidences(avuId),
+  })
+  const sapRecordsQuery = useQuery({
+    queryKey: ['avus', avuId, 'sap-records'],
+    queryFn: () => listRecordsForAvu(avuId),
+  })
 
-  if (auditQuery.isLoading || historyQuery.isLoading) return <LoadingState label="Carregando histórico..." />
+  const isLoading = auditQuery.isLoading || historyQuery.isLoading || evidencesQuery.isLoading || sapRecordsQuery.isLoading
+  if (isLoading) return <LoadingState label="Carregando histórico..." />
 
   const entries: TimelineEntry[] = [
-    ...(auditQuery.data ?? []).map((entry) => ({
-      id: `audit-${entry.id}`,
-      createdAt: entry.createdAt,
-      actorName: entry.actorName,
-      icon: ACTION_CONFIG[entry.action]?.icon ?? Circle,
-      label: ACTION_CONFIG[entry.action]?.label ?? entry.action,
-    })),
+    // 'avu.viewed' ("quem acessou") não aparece aqui — é ruído para o usuário comum;
+    // fica disponível na página de Auditoria, que é o lugar certo pra esse dado.
+    ...(auditQuery.data ?? [])
+      .filter((entry) => entry.action !== 'avu.viewed')
+      .map((entry) => {
+        if (entry.action === 'avu.updated') {
+          const { label, comment } = describeAuditChanges(entry.metadata)
+          return { id: `audit-${entry.id}`, createdAt: entry.createdAt, actorName: entry.actorName, icon: FileEdit, label, comment }
+        }
+        const config = ACTION_CONFIG[entry.action]
+        return {
+          id: `audit-${entry.id}`,
+          createdAt: entry.createdAt,
+          actorName: entry.actorName,
+          icon: config?.icon ?? Circle,
+          label: config?.label ?? entry.action,
+        }
+      }),
     ...(historyQuery.data ?? []).map((entry) => {
       const { label, icon } = describeStatusChange(entry.previousStatus, entry.newStatus)
       return {
@@ -70,6 +106,22 @@ export function AvuTimeline({ avuId }: { avuId: string }) {
         comment: entry.comment,
       }
     }),
+    ...(evidencesQuery.data ?? []).map((entry) => ({
+      id: `evidence-${entry.id}`,
+      createdAt: entry.dataUpload,
+      actorName: entry.usuarioNome,
+      icon: EVIDENCE_ICON[entry.tipo],
+      label: EVIDENCE_LABEL[entry.tipo],
+      comment: entry.descricao,
+    })),
+    ...(sapRecordsQuery.data ?? []).map((entry) => ({
+      id: `sap-${entry.id}`,
+      createdAt: entry.createdAt,
+      actorName: 'Importação SAP',
+      icon: Link2,
+      label: `Nota SAP vinculada${entry.om ? ` (OM ${entry.om})` : ''}`,
+      comment: entry.nota ? `Nota ${entry.nota}` : null,
+    })),
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
   if (entries.length === 0) {
@@ -80,6 +132,7 @@ export function AvuTimeline({ avuId }: { avuId: string }) {
     <ol className="flex flex-col gap-4">
       {entries.map((entry) => {
         const Icon = entry.icon
+        const isMultilineComment = !!entry.comment && entry.comment.includes('\n')
         return (
           <li key={entry.id} className="flex gap-3">
             <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-50 text-primary-600">
@@ -87,7 +140,12 @@ export function AvuTimeline({ avuId }: { avuId: string }) {
             </div>
             <div>
               <p className="text-sm font-medium text-graphite-800">{entry.label}</p>
-              {entry.comment && <p className="mt-0.5 text-sm text-graphite-600">"{entry.comment}"</p>}
+              {entry.comment &&
+                (isMultilineComment ? (
+                  <p className="mt-0.5 whitespace-pre-line text-sm text-graphite-600">{entry.comment}</p>
+                ) : (
+                  <p className="mt-0.5 text-sm text-graphite-600">"{entry.comment}"</p>
+                ))}
               <p className="text-xs text-gray-500">
                 {entry.actorName} · {formatDateTime(entry.createdAt)}
               </p>

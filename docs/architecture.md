@@ -35,6 +35,22 @@ O projeto tem como requisito futuro explícito a integração com GIS corporativ
 
 A decisão fica para quando os requisitos de relatório estiverem definidos.
 
+### Importação de PDF e abstração de `AIProvider` (Sprint 9)
+
+`supabase/functions/process-avu-import/` é a primeira Supabase Edge Function do projeto — a única peça deste stack (Vite SPA + Supabase) que pode segurar uma chave de IA com segurança. **Chave de API nunca fica no frontend**: `VITE_*` nunca contém segredo de provedor de IA; a chave real (`OPENAI_API_KEY`, opcional) é configurada como secret da function (`supabase secrets set`), lida só em `lib/aiProviders.ts` (o único arquivo do pipeline que toca `Deno.env`).
+
+O sistema nunca fica acoplado a um único provedor — interface `AIProvider` (`classify(descricao)`):
+
+| Provider | Quando é usado | Chamada externa? |
+|---|---|---|
+| `HeuristicAIProvider` | padrão, sempre disponível | não — classificador por palavra-chave, determinístico |
+| `OpenAIProvider` | só se `OPENAI_API_KEY` estiver configurada no Edge Function | sim — Chat Completions API |
+| Azure OpenAI / modelo corporativo | próximo a implementar (mesma interface) | ainda não implementado — não construído especulativamente |
+
+A `getAIProvider()` factory escolhe pela presença do secret; sem chave configurada, o pipeline continua funcionando normalmente, só com confiança mais conservadora (o classificador heurístico tem um teto de confiança baixo de propósito — ver `docs/testing.md`).
+
+O pipeline (PDF → OCR/extração de texto → extração de campos → extração de imagens → classificação IA → validação → criação do AVU) roda inteiro dentro da function, autenticado com o JWT de quem chamou (a mesma disciplina das RPCs `security definer`: a function nunca confia só em quem conseguiu invocá-la). A AVU real só é criada em `avus` quando a validação passa (confiança ≥ 80%) ou quando um humano confirma na tela de revisão (`pages/ImportReviewPage.tsx`) — os arquivos ficam num bucket de staging (`avu-import-staging`) até esse momento, e o PDF final + imagens extraídas viram `avu_attachments` normais (mesmo bucket/tabela da Sprint 2).
+
 ### Supabase
 
 `src/lib/supabase.ts` cria o client a partir de `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` (ver `.env.example`). Sem essas variáveis, o app ainda sobe (aponta para um projeto placeholder), mas nenhuma chamada de rede funciona de verdade. Desde a Sprint 2, o Storage também é usado de verdade (bucket `avu-attachments` — ver `docs/database.md`), não só o Postgres/Auth.
@@ -69,7 +85,7 @@ Mesmo princípio da Sprint 1 ("nunca confiar só no frontend"), estendido para a
 |---|---|---|
 | SAP PM | `src/features/sap/` | pasta reservada |
 | APIs corporativas | `src/services/` | um service por integração, seguindo o padrão de `profileService.ts` |
-| OCR / IA | `src/features/ai/` | pasta reservada |
+| OCR / IA | `supabase/functions/process-avu-import/lib/` (classificação) | implementado para importação de PDF (Sprint 9) — abstração `AIProvider`, ver seção abaixo |
 | GIS avançado | `src/features/gis/` | mapa base já funcional, camadas de dados na próxima sprint |
 | App mobile | N/A nesta sprint | a separação `services/` (lógica) vs. `components/`/`pages/` (UI web) facilita reuso de lógica se um app React Native for criado depois |
 | Offline | N/A nesta sprint | TanStack Query já é a camada de cache — path natural para persistência offline (`persistQueryClient`) quando for necessário |

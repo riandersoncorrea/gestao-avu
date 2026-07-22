@@ -483,3 +483,43 @@ Sem migration nova (reaproveita `avu_dashboard_view` da Sprint 6). Testado inser
 
 1. **Clustering nunca renderizava.** `BaseMap` esperava `map.isStyleLoaded()`/evento `load` do MapLibre antes de adicionar a fonte GeoJSON clusterizada — mas esse evento só dispara quando **todos** os tiles/glyphs do style base terminam de carregar, o que pode nunca acontecer numa rede lenta/instável (confirmado com `map.style._loaded === true` mas `map.isStyleLoaded() === false` minutos depois, e `map.addSource(...)` funcionando normalmente quando chamado direto). O mesmo padrão já existia no mapa de calor desde a Sprint 6. Corrigido: as duas camadas tentam adicionar a fonte direto (dentro de um `try/catch`) e, se o style ainda não aceitar, tentam de novo no próximo evento `styledata` — sem depender de `load`.
 2. **Vazamento de camada ao trocar de aba.** Alternar Marcadores → Mapa de calor não removia a camada de clustering anterior (e vice-versa), deixando as duas sobrepostas no mapa. Corrigido: cada efeito (`heatmapPoints`/`clusteredMarkers`) agora remove sua própria fonte/camadas quando a prop correspondente deixa de ser passada.
+
+## `supabase/functions/process-avu-import/lib/*.test.ts` (Sprint 9 — importação de PDF)
+
+14 testes cobrindo as duas peças de lógica pura do pipeline (sem `Deno.*`, testáveis via Vitest a partir do frontend mesmo vivendo em `supabase/functions/`):
+
+- **`extractFields.test.ts`** (7 testes): extração de todos os campos de um PDF bem formado; campos obrigatórios faltando (`dataCriacao`/`descricao`) reportados em `missingFields`; campos opcionais ausentes não quebram a extração; a descrição para no próximo rótulo conhecido (não engole o resto do documento); datas ISO aceitas diretamente; datas em formato não reconhecido retornam `null` **e** contam como campo faltando (não só "rótulo ausente" — um regex que bateu mas não conseguiu parsear a data também deve cair em `REVISAO_NECESSARIA`); texto vazio não lança exceção.
+- **`classify.test.ts`** (7 testes): `HeuristicAIProvider` classifica corretamente casos claros de cada uma das 4 categorias; cai em OUTROS/Geral sem palavra-chave; **nunca ultrapassa o teto de confiança do classificador heurístico** (é honestamente limitado — mesmo com várias palavras-chave de propósito, fica abaixo do limiar de 80% de validação); é determinístico.
+
+## Verificação manual da importação de PDF (Sprint 9)
+
+**Limitações conhecidas, leia antes de usar em produção:**
+- Não havia uma amostra real do PDF "modelo padronizado" nesta sprint. Os regex de `extractFields.ts` são calibrados contra rótulos assumidos (`Número AVU:`, `Data de Criação:`, etc.) — quase certamente precisarão de ajuste fino contra um PDF real.
+- `pdf.ts` (extração de imagens embutidas) só cobre imagens já codificadas como JPEG — bitmaps brutos são pulados com aviso, não implementado (exigiria um encoder PNG do zero). Validar contra um PDF real antes de confiar nessa parte.
+- A Edge Function `process-avu-import` foi escrita mas **não pôde ser publicada nesta sessão** — não há CLI do Supabase logada neste ambiente (mesma limitação já documentada para migrations). Publique manualmente:
+  ```bash
+  npx supabase login
+  npx supabase link --project-ref pgllntwbkwqekfamtahk
+  npx supabase functions deploy process-avu-import
+  # opcional, só se quiser sair do modo heurístico:
+  npx supabase secrets set OPENAI_API_KEY=sk-...
+  ```
+
+**O que foi verificado de verdade nesta sessão** (migration `0008` aplicada; function não publicada):
+
+| Cenário pedido | Resultado |
+|---|---|
+| Migration (tabelas, RPCs, policies, bucket) | ✅ aplicada e verificada via `information_schema`/`pg_policies`/`storage.buckets` |
+| RPC `avu_import_confirm_create_avu` cria a AVU corretamente | ✅ testado via transação impersonando um admin (`begin`/`set_config('request.jwt.claims', ...)`/`rollback`) — AVU criada, `avu_imports` atualizada, `audit_logs`/`avu_import_logs` gravados, tudo revertido ao final |
+| Upload individual | ✅ PDF real (gerado via `cupsfilter`, texto nativo) enviado pelo formulário — sobe pro bucket de staging, linha `AGUARDANDO` aparece na fila |
+| Upload em lote | ✅ 2 PDFs de uma vez — cada um vira sua própria linha, processados em sequência (não simultâneo) |
+| Testar falhas | ✅ **teste real, não simulado**: a Edge Function genuinamente não está publicada nesta sessão, então toda tentativa de processar cai em `ERRO` com mensagem clara (`FunctionsFetchError`/404) — validou o caminho de erro de ponta a ponta como ele realmente se comporta sem a function no ar |
+| Botão "Tentar novamente" | ✅ reseta pra `AGUARDANDO` e reprocessa (volta pra `ERRO`, esperado, já que a function continua fora do ar) |
+| Tela de revisão — PDF original | ✅ preview via signed URL do bucket de staging renderiza o PDF real dentro de um `<iframe>` |
+| Tela de revisão — dados extraídos (REVISAO_NECESSARIA) | ✅ formulário editável pré-preenchido, badge de confiança, cascata categoria→subcategoria testada manualmente |
+| Log de processamento | ✅ painel colapsável mostra as linhas de `avu_import_logs` (`UPLOAD` confirmado) |
+| Confiança abaixo de 80% → revisão necessária | ✅ simulado com `confianca = 62` diretamente no banco (a Edge Function real, uma vez publicada, escreve esse valor sozinha) |
+
+**Bug encontrado e corrigido nesta verificação**: `categoria_sugerida`/`subcategoria_sugerida` são colunas de texto livre, não um enum no banco — a tela de revisão fazia `AVU_IMPORT_SUBCATEGORIES[categoria].map(...)` assumindo que o valor vindo do banco sempre bate exatamente com uma das 4 chaves da taxonomia. Um valor levemente diferente (achado ao testar com dados sem acentuação) quebrava a página inteira (`Cannot read properties of undefined (reading 'map')`). Isso é um risco real também para o `OpenAIProvider` (resposta de LLM é texto livre, pode parafrasear/variar acentuação). Corrigido nos dois lugares: `ImportReviewPage.tsx` valida contra `AVU_IMPORT_CATEGORIES`/`AVU_IMPORT_SUBCATEGORIES` antes de usar, caindo em `OUTROS`/primeira subcategoria se o valor não bater; `aiProviders.ts` faz a mesma validação na resposta da OpenAI antes de retornar.
+
+Dados de teste (linhas `avu_imports` + arquivos no bucket de staging) removidos ao final.

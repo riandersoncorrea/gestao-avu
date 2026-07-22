@@ -27,11 +27,11 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Planejamento', path: ROUTES.planning, icon: CalendarClock },
   { label: 'Mapa', path: ROUTES.map, icon: Map },
   { label: 'Contratadas', path: ROUTES.contractors, icon: HardHat },
-  { label: 'Importações', path: ROUTES.imports, icon: Upload },
   { label: 'Relatórios', path: ROUTES.reports, icon: FileBarChart },
 ]
 
 const INSPECTIONS_ITEM: NavItem = { label: 'Fiscalização', path: ROUTES.inspections, icon: ClipboardCheck }
+const IMPORTS_ITEM: NavItem = { label: 'Importações', path: ROUTES.imports, icon: Upload }
 const ADMIN_ITEM: NavItem = { label: 'Administração', path: ROUTES.admin, icon: Settings }
 
 export interface SidebarProps {
@@ -45,6 +45,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const navItems = [
     ...NAV_ITEMS,
     ...(isAdmin || hasPermission('evidence.analyze') ? [INSPECTIONS_ITEM] : []),
+    ...(isAdmin || hasPermission('avus.create') ? [IMPORTS_ITEM] : []),
     ...(isAdmin ? [ADMIN_ITEM] : []),
   ]
 

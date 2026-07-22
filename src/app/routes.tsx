@@ -22,6 +22,9 @@ const InspectionReviewPage = lazy(() =>
   import('@/pages/InspectionReviewPage').then((m) => ({ default: m.InspectionReviewPage })),
 )
 const ImportsPage = lazy(() => import('@/pages/ImportsPage').then((m) => ({ default: m.ImportsPage })))
+const ImportReviewPage = lazy(() =>
+  import('@/pages/ImportReviewPage').then((m) => ({ default: m.ImportReviewPage })),
+)
 const ReportsPage = lazy(() => import('@/pages/ReportsPage').then((m) => ({ default: m.ReportsPage })))
 const AdminPage = lazy(() => import('@/pages/AdminPage').then((m) => ({ default: m.AdminPage })))
 const PortalDashboardPage = lazy(() =>
@@ -86,7 +89,13 @@ export const router = createBrowserRouter([
               { path: `${ROUTES.inspections}/:id`, element: withSuspense(<InspectionReviewPage />) },
             ],
           },
-          { path: ROUTES.imports, element: withSuspense(<ImportsPage />) },
+          {
+            element: <RequirePermission permission="avus.create" />,
+            children: [
+              { path: ROUTES.imports, element: withSuspense(<ImportsPage />) },
+              { path: `${ROUTES.imports}/:id`, element: withSuspense(<ImportReviewPage />) },
+            ],
+          },
           { path: ROUTES.reports, element: withSuspense(<ReportsPage />) },
           {
             element: <RequireAdmin />,

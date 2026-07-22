@@ -4,5 +4,10 @@
   "rules": {
     "react/rules-of-hooks": "error",
     "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
+  },
+  "ignorePatterns": [
+    "supabase/functions/**/index.ts",
+    "supabase/functions/**/lib/aiProviders.ts",
+    "supabase/functions/**/lib/pdf.ts"
+  ]
 }

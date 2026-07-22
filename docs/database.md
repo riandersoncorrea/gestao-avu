@@ -292,6 +292,19 @@ Dashboard Executivo: índices para os 9 filtros globais e a view que traz `statu
 
 `avus.*` + `status_since` (mesmo cálculo de `avu_planning_view`, repetido aqui pra poder usar `deriveAvuRisk` no ranking de áreas críticas do dashboard) + `data_conclusao` (nova: última linha de `avu_status_history` com `new_status = 'CONCLUIDO'`, usada pro indicador de tempo médio de atendimento — `data_conclusao - data_criacao`, em dias, só nas AVUs concluídas).
 
+## Migration `0008_avu_imports.sql`
+
+Fila de importação inteligente de PDFs (Sprint 9). Ver `docs/architecture.md` ("Importação de PDF e abstração de `AIProvider`") e `docs/testing.md` para o pipeline completo.
+
+- `avu_import_status` enum: `AGUARDANDO | PROCESSANDO | PROCESSADO | ERRO | REVISAO_NECESSARIA`.
+- `avu_imports` — uma linha por PDF em processamento. `avu_id` é **nullable**: só é preenchido quando a AVU real é criada (validação automática com confiança ≥ 80%, ou confirmação humana na tela de revisão) — nunca antes, pra não deixar AVU incompleta visível a ninguém nem quebrar a disciplina de FK.
+- `avu_import_logs` — um log por passo do pipeline (`UPLOAD`, `OCR`, `EXTRACAO_TEXTO`, `EXTRACAO_CAMPOS`, `EXTRACAO_IMAGENS`, `CLASSIFICACAO_IA`, `VALIDACAO`, `CRIACAO_AVU`), pra transparência na tela de revisão.
+- Bucket novo `avu-import-staging` (privado, só PDF, 20MB): arquivo ainda não pertence a nenhuma AVU visível, então a RLS de storage não pode usar `can_view_avu()` aqui — usa a mesma população que pode importar (`is_admin() or has_permission('avus.create')`, igual à régua de `/avus/novo`).
+- PDF final e imagens extraídas **não ganham um bucket/tabela novos** — viram `avu_attachments` normais no bucket `avu-attachments` já existente (`kind='document'` pro PDF, `kind='photo'` por imagem), reaproveitando toda a RLS/UI da Sprint 2 (aparecem de graça nas abas Documentos/Fotos do detalhe da AVU). A cópia de bytes do staging pro bucket final não é possível em SQL puro — é feita pela Edge Function, que tem acesso à API de Storage.
+- RPC `avu_import_start(p_import_id, p_original_file_name, p_staging_path)` — registra a linha da fila (status `AGUARDANDO`); o `id` é gerado no cliente (mesmo padrão de `avuService.ts`/`evidenceService.ts`) pra já poder montar o path de staging antes desta chamada.
+- RPC `avu_import_retry(p_import_id)` — reseta `ERRO` de volta pra `AGUARDANDO`.
+- RPC `avu_import_confirm_create_avu(p_import_id, p_fields, p_categoria, p_subcategoria)` — cria a linha real em `avus` a partir dos campos extraídos/editados (só a parte de banco; storage é responsabilidade da Edge Function), grava `audit_logs` + `avu_import_logs`.
+
 ## Convenções para próximas migrations
 
 - Uma migration por mudança de schema coesa, nomeada `NNNN_descricao.sql`.

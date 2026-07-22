@@ -45,8 +45,11 @@ Tela dedicada de análise do Fiscal (`pages/InspectionsPage.tsx` — fila por bu
 - Checklists estruturados de campo (itens de verificação, além do par aprovar/reprovar/complementação já existente desde a Sprint 5).
 - Ler evidências (`avu_evidences`, Sprint 4, e `avu_attachments`, Sprint 2) com apoio de OCR/IA no futuro (`features/ai`).
 
-## Sprint 9 — Importações
+## Sprint 9 — Importações (PDF concluído; planilhas/SAP pendentes)
 
+`pages/ImportsPage.tsx` (rota `/importacoes`, agora atrás de `RequirePermission permission="avus.create"` — antes não tinha guarda nenhuma) deixou de ser o placeholder da Sprint 0 e virou a importação inteligente de PDFs pedida: upload individual ou em lote (drag-and-drop + seletor), fila de processamento (`avu_imports`, migration `0008`) com os 5 estados pedidos, pipeline PDF→OCR→extração de texto→extração de campos→extração de imagens→classificação IA→validação→criação do AVU rodando num Supabase Edge Function novo (`supabase/functions/process-avu-import/`, a primeira function do projeto), tela de revisão (`pages/ImportReviewPage.tsx`) para os casos com confiança abaixo de 80%. Ver `docs/database.md` (migration `0008`) e `docs/testing.md` (inclui as limitações conhecidas de calibração contra um PDF real).
+
+Ainda pendente, como próximo incremento do mesmo épico "Importações":
 - Importação de planilhas/dados externos.
 - Primeiro rascunho de integração SAP PM (`features/sap`, `services/`) — os campos `nota_sap`/`ordem_manutencao` já existem em `avus`.
 

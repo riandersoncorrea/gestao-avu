@@ -48,7 +48,7 @@ export function AvuFiltersBar({ filters, onChange }: AvuFiltersBarProps) {
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Select
             placeholder="Status"
             value={filters.status}
@@ -91,20 +91,20 @@ export function AvuFiltersBar({ filters, onChange }: AvuFiltersBarProps) {
             onChange={(event) => set('responsavelId', event.target.value)}
             options={(profilesQuery.data ?? []).map((p) => ({ value: p.id, label: p.fullName }))}
           />
-          <div className="flex gap-2">
-            <Input
-              type="date"
-              aria-label="Período — início"
-              value={filters.periodoInicio}
-              onChange={(event) => set('periodoInicio', event.target.value)}
-            />
-            <Input
-              type="date"
-              aria-label="Período — fim"
-              value={filters.periodoFim}
-              onChange={(event) => set('periodoFim', event.target.value)}
-            />
-          </div>
+          <Input
+            type="date"
+            aria-label="Período — início"
+            value={filters.periodoInicio}
+            onChange={(event) => set('periodoInicio', event.target.value)}
+            className="min-w-0"
+          />
+          <Input
+            type="date"
+            aria-label="Período — fim"
+            value={filters.periodoFim}
+            onChange={(event) => set('periodoFim', event.target.value)}
+            className="min-w-0"
+          />
         </div>
 
         {hasActiveFilters && (

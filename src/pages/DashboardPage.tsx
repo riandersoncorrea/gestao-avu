@@ -1,64 +1,85 @@
-import { CheckCircle2, ClipboardCheck, ShieldAlert, Timer } from 'lucide-react'
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { PageHeader } from '@/components/PageHeader'
-import { KpiCard } from '@/components/KpiCard'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/Card'
-import { EmptyState } from '@/components/EmptyState'
-
-const DEMO_CHART_DATA = [
-  { month: 'Fev', avus: 12 },
-  { month: 'Mar', avus: 19 },
-  { month: 'Abr', avus: 14 },
-  { month: 'Mai', avus: 22 },
-  { month: 'Jun', avus: 17 },
-  { month: 'Jul', avus: 25 },
-]
+import { LoadingState } from '@/components/LoadingState'
+import {
+  computeAverageCycleTimeByGroup,
+  computeAverageCycleTimeDays,
+  computeCriticalAreasRanking,
+  computeHeatmapPoints,
+  computeKpis,
+  computeTemporalSeries,
+  groupCount,
+} from '@/features/dashboard/analytics'
+import { listAvusForDashboard } from '@/features/dashboard/dashboardService'
+import { EMPTY_DASHBOARD_FILTERS, type DashboardAvu, type DashboardFilters } from '@/features/dashboard/types'
+import { DashboardFiltersBar } from '@/features/dashboard/components/DashboardFiltersBar'
+import { DashboardKpis } from '@/features/dashboard/components/DashboardKpis'
+import { CycleTimeIndicators } from '@/features/dashboard/components/CycleTimeIndicators'
+import { GroupBarChart } from '@/features/dashboard/components/GroupBarChart'
+import { CriticalAreasRanking } from '@/features/dashboard/components/CriticalAreasRanking'
+import { VulnerabilityHeatmap } from '@/features/dashboard/components/VulnerabilityHeatmap'
+import { TemporalChart } from '@/features/dashboard/components/TemporalChart'
 
 export function DashboardPage() {
+  const [filters, setFilters] = useState<DashboardFilters>(EMPTY_DASHBOARD_FILTERS)
+
+  const avusQuery = useQuery({
+    queryKey: ['dashboard', filters],
+    queryFn: () => listAvusForDashboard(filters),
+  })
+
   return (
     <div>
       <PageHeader
-        title="Dashboard"
-        description="Visão geral operacional — Serviços Operacionais São Luís EFC."
+        title="Dashboard Executivo"
+        description="Acompanhamento do desempenho operacional — Serviços Operacionais São Luís EFC."
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label="AVUs abertas" value={38} icon={ShieldAlert} trend={{ value: '+4 na semana', direction: 'up' }} />
-        <KpiCard label="Em execução" value={12} icon={Timer} />
-        <KpiCard label="Fiscalizações pendentes" value={7} icon={ClipboardCheck} trend={{ value: '-2 na semana', direction: 'down' }} />
-        <KpiCard label="Concluídas no mês" value={25} icon={CheckCircle2} trend={{ value: '+18%', direction: 'up' }} />
+      <DashboardFiltersBar filters={filters} onChange={setFilters} />
+
+      {avusQuery.isLoading ? (
+        <LoadingState />
+      ) : (
+        <DashboardContent avus={avusQuery.data ?? []} filters={filters} />
+      )}
+    </div>
+  )
+}
+
+function DashboardContent({ avus, filters }: { avus: DashboardAvu[]; filters: DashboardFilters }) {
+  const kpis = computeKpis(avus)
+  const averageCycleTime = computeAverageCycleTimeDays(avus)
+  const byGerencia = computeAverageCycleTimeByGroup(avus, (avu) => avu.gerenciaResponsavel)
+  const byEmpresa = computeAverageCycleTimeByGroup(avus, (avu) => avu.empresaExecutante)
+  const criticalAreas = computeCriticalAreasRanking(avus)
+  const temporalSeries = computeTemporalSeries(avus)
+  const heatmapPoints = computeHeatmapPoints(avus)
+
+  const byCategoria = groupCount(avus, (avu) => avu.categoria)
+  const byLocal = groupCount(avus, (avu) => avu.local)
+  const byProjeto = groupCount(avus, (avu) => avu.projeto)
+  const byEmitente = groupCount(avus, (avu) => avu.emitente?.fullName ?? null)
+  const byResponsavel = groupCount(avus, (avu) => avu.responsavel?.fullName ?? null)
+
+  return (
+    <div className="flex flex-col gap-6">
+      <DashboardKpis kpis={kpis} dashboardFilters={filters} />
+
+      <CycleTimeIndicators averageDays={averageCycleTime} byGerencia={byGerencia} byEmpresa={byEmpresa} />
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <GroupBarChart title="AVUs por categoria" data={byCategoria} />
+        <GroupBarChart title="AVUs por local" data={byLocal} />
+        <GroupBarChart title="AVUs por projeto" data={byProjeto} />
+        <GroupBarChart title="AVUs por emitente" data={byEmitente} />
+        <GroupBarChart title="AVUs por responsável" data={byResponsavel} />
+        <CriticalAreasRanking areas={criticalAreas} />
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>AVUs abertas por mês (exemplo — dados fictícios)</CardTitle>
-          </CardHeader>
-          <CardContent className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={DEMO_CHART_DATA}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" vertical={false} />
-                <XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={12} />
-                <YAxis tickLine={false} axisLine={false} fontSize={12} width={28} />
-                <Tooltip cursor={{ fill: '#f2f2f2' }} />
-                <Bar dataKey="avus" fill="#0e9b8a" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Atividade recente</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <EmptyState
-              title="Sem atividade ainda"
-              description="O feed de atividades será implementado junto com o módulo de AVUs."
-              className="border-none px-0 py-8"
-            />
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <VulnerabilityHeatmap points={heatmapPoints} />
+        <TemporalChart data={temporalSeries} />
       </div>
     </div>
   )

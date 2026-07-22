@@ -30,22 +30,26 @@ Tela dedicada de análise do Fiscal (`pages/InspectionsPage.tsx` — fila por bu
 
 **Bug de segurança encontrado e corrigido na verificação desta sprint**: a checagem de autorização `has_role('fiscal') and v_avu.fiscal = auth.uid()` dentro de um `if not (...)` deixava passar qualquer Fiscal quando a AVU não tinha fiscal atribuído (`fiscal is null`), por causa da lógica de três valores do PL/pgSQL (`false or null` = `null`, e `if null` não dispara `raise exception`). Corrigido com `v_avu.fiscal is not null and ...` explícito.
 
-## Sprint 6 — GIS funcional
+## Sprint 6 — Dashboard Executivo (concluída)
 
-- Camada vetorial com **todas** as AVUs georreferenciadas sobre o `BaseMap` (hoje o mapa só plota uma AVU por vez, na aba "Localização" do detalhe).
+`pages/DashboardPage.tsx` (rota `/`) deixou de ser o placeholder estático da Sprint 0 ("dados fictícios") e virou o dashboard executivo pedido: 8 KPIs (Total/Pendentes/Programados/Em Execução/Concluídos/Sem Planejamento/Vencidos/Próximos do Vencimento — `features/dashboard/analytics.ts`, `avuMatchesBucket` como fonte única de verdade), indicadores de tempo médio de atendimento (geral/por gerência/por contratada, via `data_conclusao` novo em `avu_dashboard_view`), 5 gráficos de barra (categoria/local/projeto/emitente/responsável), ranking de áreas críticas (reaproveita `features/avus/risk.ts`), gráfico temporal e mapa de calor de vulnerabilidades (`BaseMap` ganhou uma camada `heatmap` nativa do MapLibre). 9 filtros globais atualizam tudo junto (um único fetch alimenta todos os indicadores). KPIs são clicáveis — abrem `/avus` já filtrada (`pages/AvusPage.tsx` passou a ler `location.state` pro drill-down). Índices novos em `avus` para as colunas de filtro/agrupamento, verificados com `explain analyze` sob carga sintética. Ver `docs/database.md` (migration `0007`) e `docs/testing.md`.
+
+## Sprint 7 — GIS funcional
+
+- Camada vetorial com **todas** as AVUs georreferenciadas sobre o `BaseMap` (hoje o mapa só plota uma AVU por vez, na aba "Localização" do detalhe, ou o mapa de calor agregado da Sprint 6 — falta a camada com cada AVU individual navegável).
 - Definição do provedor de tiles definitivo (avaliar dados SIG corporativos da Vale vs. provedor externo tipo MapTiler).
 
-## Sprint 7 — Fiscalização (checklists estruturados)
+## Sprint 8 — Fiscalização (checklists estruturados)
 
 - Checklists estruturados de campo (itens de verificação, além do par aprovar/reprovar/complementação já existente desde a Sprint 5).
 - Ler evidências (`avu_evidences`, Sprint 4, e `avu_attachments`, Sprint 2) com apoio de OCR/IA no futuro (`features/ai`).
 
-## Sprint 8 — Importações
+## Sprint 9 — Importações
 
 - Importação de planilhas/dados externos.
 - Primeiro rascunho de integração SAP PM (`features/sap`, `services/`) — os campos `nota_sap`/`ordem_manutencao` já existem em `avus`.
 
-## Sprint 9 — Relatórios / PDF
+## Sprint 10 — Relatórios / PDF
 
 - Escolher e implementar a geração de PDF (`@react-pdf/renderer` vs. Edge Function + Puppeteer — ver `docs/architecture.md`).
 - Exportação de laudos de fiscalização e relatórios gerenciais a partir dos dados de `avus`/`audit_logs` já existentes.

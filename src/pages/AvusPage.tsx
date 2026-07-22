@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/Button'
@@ -11,16 +11,47 @@ import { listAvus } from '@/features/avus/avuService'
 import { AvuFiltersBar } from '@/features/avus/components/AvuFiltersBar'
 import { AvuStatusBadge } from '@/features/avus/components/AvuStatusBadge'
 import { SlaBadge } from '@/features/avus/components/SlaBadge'
-import { EMPTY_AVU_FILTERS, type Avu } from '@/features/avus/types'
+import { EMPTY_AVU_FILTERS, type Avu, type AvuFilters } from '@/features/avus/types'
+import { avuMatchesBucket } from '@/features/dashboard/analytics'
+import type { DashboardBucket, DashboardFilters } from '@/features/dashboard/types'
 import { ROUTES } from '@/lib/routes'
 import { formatDate } from '@/utils/format'
 
+/** Drill-down vindo dos KPIs do Dashboard Executivo (`navigate(ROUTES.avus, { state })`). */
+interface DrillDownState {
+  dashboardFilters?: DashboardFilters
+  bucket?: DashboardBucket | null
+}
+
+/** `DashboardFilters` não tem `search`, e `emitenteId` não tem equivalente em `AvuFilters`
+ * (a barra de filtros de `/avus` não oferece esse campo) — o resto mapeia direto. */
+function toAvuFilters(dashboardFilters: DashboardFilters): AvuFilters {
+  return {
+    ...EMPTY_AVU_FILTERS,
+    status: dashboardFilters.status,
+    categoria: dashboardFilters.categoria,
+    gerenciaResponsavel: dashboardFilters.gerenciaResponsavel,
+    projeto: dashboardFilters.projeto,
+    local: dashboardFilters.local,
+    empresaExecutante: dashboardFilters.empresaExecutante,
+    responsavelId: dashboardFilters.responsavelId,
+    periodoInicio: dashboardFilters.periodoInicio,
+    periodoFim: dashboardFilters.periodoFim,
+  }
+}
+
 export function AvusPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { hasPermission } = useAuth()
-  const [filters, setFilters] = useState(EMPTY_AVU_FILTERS)
+  const drillDown = location.state as DrillDownState | null
+  const [filters, setFilters] = useState<AvuFilters>(() =>
+    drillDown?.dashboardFilters ? toAvuFilters(drillDown.dashboardFilters) : EMPTY_AVU_FILTERS,
+  )
 
   const avusQuery = useQuery({ queryKey: ['avus', 'list', filters], queryFn: () => listAvus(filters) })
+  const bucket = drillDown?.bucket
+  const tableData = bucket ? (avusQuery.data ?? []).filter((avu) => avuMatchesBucket(avu, bucket)) : avusQuery.data ?? []
 
   const columns: DataTableColumn<Avu>[] = [
     { key: 'numero', header: 'Número', render: (avu) => <span className="font-medium">{avu.numeroAvu}</span> },
@@ -68,7 +99,7 @@ export function AvusPage() {
       <Card>
         <CardContent className="p-0">
           <DataTable
-            data={avusQuery.data ?? []}
+            data={tableData}
             columns={columns}
             getRowId={(avu) => avu.id}
             isLoading={avusQuery.isLoading}

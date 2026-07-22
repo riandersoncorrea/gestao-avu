@@ -280,6 +280,18 @@ A RPC genérica de planejamento já bloqueava `AGUARDANDO_APROVACAO`/`CONCLUIDO`
 
 `avus.*` + `latest_decision`/`latest_decision_comment`/`latest_decision_at`/`latest_decision_fiscal_id` via `left join lateral` na última linha de `avu_approvals` (mesmo padrão de `status_since` em `avu_planning_view`). Necessária porque o bucket "Reprovados" da página de Fiscalização **não pode ser um filtro de `status`** — reprovar manda a AVU pra `EM_EXECUCAO`, então só a última decisão registrada diz se aquela AVU foi reprovada.
 
+## Migration `0007_dashboard_executivo.sql`
+
+Dashboard Executivo: índices para os 9 filtros globais e a view que traz `status_since`/`data_conclusao` pros indicadores.
+
+### Índices novos
+
+`categoria`, `local`, `projeto`, `gerencia_responsavel`, `empresa_executante`, `emitente`, `data_criacao` — até aqui só existiam em `status`/`fiscal`/`responsavel`/`data_limite` (Sprint 2). Verificado com `explain analyze` (ver `docs/testing.md`): com a tabela vazia o planner corretamente prefere `Seq Scan` (é mais barato que usar índice em poucas linhas); inserindo 5000 linhas sintéticas dentro de uma transação revertida, o mesmo filtro já usa `Index Scan using avus_gerencia_responsavel_idx`, ~3ms de execução.
+
+### `avu_dashboard_view`
+
+`avus.*` + `status_since` (mesmo cálculo de `avu_planning_view`, repetido aqui pra poder usar `deriveAvuRisk` no ranking de áreas críticas do dashboard) + `data_conclusao` (nova: última linha de `avu_status_history` com `new_status = 'CONCLUIDO'`, usada pro indicador de tempo médio de atendimento — `data_conclusao - data_criacao`, em dias, só nas AVUs concluídas).
+
 ## Convenções para próximas migrations
 
 - Uma migration por mudança de schema coesa, nomeada `NNNN_descricao.sql`.

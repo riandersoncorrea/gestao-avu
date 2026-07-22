@@ -11,7 +11,7 @@ Duas camadas de teste, porque autorização aqui nunca depende só do frontend:
 npm run test
 ```
 
-115 testes em 10 arquivos.
+137 testes em 11 arquivos.
 
 ### `src/features/auth/permissions.test.ts`
 
@@ -403,3 +403,57 @@ rollback;
 | Planejamento chamando `avu_transition_status` de AGUARDANDO_APROVACAO para EM_EXECUCAO/AGUARDANDO_EVIDENCIAS | ❌ bloqueado (reservado a `avu_review_evidence`) |
 | `notifications` — outro usuário lendo a notificação de alguém | ❌ 0 linhas (RLS) |
 | Bucket "Reprovados" da fila | ✅ usa `latest_decision`, não `status` (reprovar não passa por `REPROVADO`) |
+
+### `src/features/dashboard/analytics.test.ts` (Sprint 6)
+
+22 testes cobrindo todas as funções puras: `avuMatchesBucket` (um caso por bucket, incluindo `sem_planejamento` com nota/OM parcialmente preenchidas e `vencidos`/`proximos_vencimento` via SLA), `computeKpis` (contagem sobre lista mista), `computeAverageCycleTimeDays`/`computeAverageCycleTimeByGroup` (fixture com `dataCriacao`/`dataConclusao` conhecidos — pegou um bug real de fuso horário, ver abaixo), `groupCount` (ordenação + corte em topN + valores nulos ignorados), `computeCriticalAreasRanking` (reaproveita `deriveAvuRisk`), `computeTemporalSeries` (agrupamento por mês), `computeHeatmapPoints`.
+
+**Bug de fuso horário encontrado e corrigido nesta sprint**: `cycleTimeDays` comparava `dataCriacao` (uma `date` pura, parseada como hora local — `new Date('2026-01-01T00:00:00')`, sem `Z`) com `dataConclusao` (um `timestamptz` do Postgres, com offset/`Z`). Num fuso diferente de UTC isso produz um desvio de horas no "tempo médio de atendimento". Corrigido ancorando as duas datas em UTC explicitamente (`T00:00:00Z`).
+
+## Verificação de performance do Dashboard Executivo (Sprint 6)
+
+Aplicada a migration `0007` (7 índices novos + `avu_dashboard_view`), confirmado com `explain analyze`:
+
+```sql
+-- Com a tabela avus vazia, o planner corretamente prefere Seq Scan (mais barato que
+-- usar índice em poucas linhas) — não é um problema dos índices, é o comportamento
+-- esperado do otimizador de custo do Postgres.
+explain analyze
+select * from public.avu_dashboard_view
+where categoria = 'Elétrica' and gerencia_responsavel = 'Manutenção' and data_criacao >= '2026-01-01';
+-- ↑ Seq Scan on avus a
+```
+
+```sql
+-- Com 5000 linhas sintéticas (inseridas e revertidas na mesma transação — begin/rollback,
+-- nada fica no banco), o mesmo filtro já usa o índice novo:
+begin;
+insert into public.avus (descricao, categoria, gerencia_responsavel, local, projeto, empresa_executante, data_criacao, status)
+select
+  'AVU sintética de teste de performance ' || i,
+  (array['Elétrica','Mecânica','Civil','Instrumentação','Estrutural'])[1 + (i % 5)],
+  (array['Manutenção','Operações','Engenharia','Segurança'])[1 + (i % 4)],
+  (array['Pátio A','Pátio B','Oficina','Terminal'])[1 + (i % 4)],
+  (array['Projeto Norte','Projeto Sul','Projeto Central'])[1 + (i % 3)],
+  (array['Empresa Alfa','Empresa Beta','Empresa Gama'])[1 + (i % 3)],
+  (current_date - (i % 400)),
+  (array['NOVO','TRIAGEM','PLANEJAMENTO','PROGRAMADO','EM_EXECUCAO','CONCLUIDO'])[1 + (i % 6)]::public.avu_status
+from generate_series(1, 5000) as i;
+
+explain analyze
+select * from public.avu_dashboard_view
+where categoria = 'Elétrica' and gerencia_responsavel = 'Manutenção' and data_criacao >= current_date - 400;
+-- ↑ Index Scan using avus_gerencia_responsavel_idx on avus a
+--   (actual time=0.033..0.805 rows=250 loops=1) — consulta inteira em ~3.4ms
+
+rollback;
+```
+
+### Checklist esperado — Dashboard Executivo
+
+| Cenário | Resultado esperado |
+|---|---|
+| Índices (`categoria`/`local`/`projeto`/`gerencia_responsavel`/`empresa_executante`/`emitente`/`data_criacao`) existem | ✅ confirmado via `pg_indexes` |
+| Filtro combinado sob volume realista (5000 linhas sintéticas) | ✅ `Index Scan`, não `Seq Scan`; consulta em poucos ms |
+| `avuMatchesBucket` usado tanto pra contar KPI quanto pra filtrar `/avus` (drill-down) | ✅ mesma função, sem lógica duplicada |
+| 9 filtros globais atualizando todos os indicadores juntos | ✅ um único fetch (`listAvusForDashboard`) alimenta tudo |

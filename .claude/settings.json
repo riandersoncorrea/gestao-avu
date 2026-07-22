@@ -20,7 +20,18 @@
       "Bash(python3 -c \"from PIL import Image; im = Image.open\\('/private/tmp/claude-501/-Users-rianderson-Documents-Projetos-AVU/f226e7c3-82e9-48f8-b2c6-87bd4c8bb0f5/scratchpad/manual-tooling/shots/18-fiscalizacao-revisao.png'\\); print\\(im.size\\)\")",
       "Bash(python3 -c ' *)",
       "Bash(AVU_EMAIL=\"ricorrea59@gmail.com\" AVU_PASSWORD=\"adm1234\" DEMO_AVU_ID=\"15c1d8a2-a369-4bda-bff5-b6a96b888e3e\" node demo-flow.mjs)",
-      "Bash(python3 annotate.py)"
+      "Bash(python3 annotate.py)",
+      "Bash(mkdir -p assets)",
+      "Bash(cp /Users/rianderson/Documents/Projetos/AVU/src/assets/branding/sao-luis-efc-logo.png assets/logo.png)",
+      "Bash(python3 -c \"from PIL import Image; print\\(Image.open\\('assets/logo.png'\\).size\\)\")",
+      "Bash(node render.mjs manual_usuario.html manual_usuario_DRAFT.pdf \"Manual do Usuário — Gestão de AVU\")",
+      "Bash(pdfinfo manual_usuario_DRAFT.pdf)",
+      "Bash(node render.mjs manual_administrador.html manual_administrador_DRAFT.pdf \"Manual do Administrador — Gestão de AVU\")",
+      "Bash(pdfinfo manual_administrador_DRAFT.pdf)",
+      "Bash(pdfinfo \"/Users/rianderson/Documents/Projetos/AVU/docs/manuais/Manual_do_Usuario_Gestao_de_AVU.pdf\")",
+      "Bash(pdfinfo \"/Users/rianderson/Documents/Projetos/AVU/docs/manuais/Manual_do_Administrador_Gestao_de_AVU.pdf\")",
+      "Bash(lsof -ti:5183)",
+      "Bash(xargs -r kill)"
     ],
     "additionalDirectories": [
       "/Users/rianderson/Documents/Projetos/AVU/docs"

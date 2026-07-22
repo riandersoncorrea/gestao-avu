@@ -1,7 +1,9 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { cn } from '@/lib/utils'
+import { DEFAULT_MAP_STYLE_ID, MAP_STYLES, getMapStyle } from '../mapStyles'
+import { MapStyleControl } from './mapStyleControl'
 
 // Terminal Marítimo de Ponta da Madeira / São Luís, MA — sede da EFC.
 const SAO_LUIS_EFC_CENTER: [number, number] = [-44.3697, -2.5307]
@@ -45,6 +47,10 @@ export interface BaseMapProps {
   selectedMarkerId?: string | null
   /** Centraliza o mapa numa coordenada sob demanda (ex.: clique numa linha da tabela). */
   flyTo?: FlyToTarget | null
+  /** Camada/estilo inicial (ver `features/gis/mapStyles.ts`). Padrão: `DEFAULT_MAP_STYLE_ID`. */
+  defaultStyleId?: string
+  /** Mostra o controle de troca de camada no canto superior direito (junto do zoom). Padrão: `true`. */
+  showStyleControl?: boolean
 }
 
 const HEATMAP_SOURCE_ID = 'avu-heatmap-source'
@@ -64,6 +70,14 @@ function heatmapGeoJson(points: HeatmapPoint[]) {
       geometry: { type: 'Point' as const, coordinates: [point.longitude, point.latitude] },
     })),
   }
+}
+
+function applySelectionHighlight(map: maplibregl.Map, selectedMarkerId: string | null | undefined) {
+  if (!map.getLayer(UNCLUSTERED_LAYER_ID)) return
+  const isSelected = ['==', ['get', 'avuId'], selectedMarkerId ?? '__none__']
+  map.setPaintProperty(UNCLUSTERED_LAYER_ID, 'circle-stroke-width', ['case', isSelected, 3, 1.5])
+  map.setPaintProperty(UNCLUSTERED_LAYER_ID, 'circle-stroke-color', ['case', isSelected, '#3d0f20', '#ffffff'])
+  map.setPaintProperty(UNCLUSTERED_LAYER_ID, 'circle-radius', ['case', isSelected, 11, 8])
 }
 
 function clusterGeoJson(points: ClusteredMarker[]) {
@@ -92,6 +106,8 @@ export function BaseMap({
   onClusteredMarkerClick,
   selectedMarkerId,
   flyTo,
+  defaultStyleId = DEFAULT_MAP_STYLE_ID,
+  showStyleControl = true,
 }: BaseMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
@@ -102,25 +118,57 @@ export function BaseMap({
   heatmapPointsRef.current = heatmapPoints ?? []
   const clusteredMarkersRef = useRef<ClusteredMarker[]>(clusteredMarkers ?? [])
   clusteredMarkersRef.current = clusteredMarkers ?? []
+  const selectedMarkerIdRef = useRef(selectedMarkerId)
+  selectedMarkerIdRef.current = selectedMarkerId
+  const styleControlRef = useRef<MapStyleControl | null>(null)
+  const isInitialStyleRef = useRef(true)
+  // Incrementado sempre que o style base troca (troca de camada) — as camadas customizadas
+  // (heatmap/cluster/realce) dependem dele pra saber que precisam ser recriadas, já que
+  // `map.setStyle()` descarta todas as fontes/camadas anteriores.
+  const [styleVersion, setStyleVersion] = useState(0)
+  const [styleId, setStyleId] = useState(defaultStyleId)
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
 
     mapRef.current = new maplibregl.Map({
       container: containerRef.current,
-      style: 'https://demotiles.maplibre.org/style.json',
+      style: getMapStyle(styleId).styleUrl,
       center: center ?? SAO_LUIS_EFC_CENTER,
       zoom,
     })
 
     mapRef.current.addControl(new maplibregl.NavigationControl(), 'top-right')
 
+    if (showStyleControl) {
+      const control = new MapStyleControl(MAP_STYLES, styleId, setStyleId)
+      styleControlRef.current = control
+      mapRef.current.addControl(control, 'top-right')
+    }
+
     return () => {
       mapRef.current?.remove()
       mapRef.current = null
+      styleControlRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Troca de camada/estilo (controle no canto superior direito). O style inicial já é
+  // aplicado na criação do mapa acima — este efeito só cuida de trocas subsequentes.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+
+    if (isInitialStyleRef.current) {
+      isInitialStyleRef.current = false
+      return
+    }
+
+    map.setStyle(getMapStyle(styleId).styleUrl)
+    styleControlRef.current?.setValue(styleId)
+    setStyleVersion((v) => v + 1)
+  }, [styleId])
 
   useEffect(() => {
     const map = mapRef.current
@@ -196,7 +244,7 @@ export function BaseMap({
     }
 
     applyHeatmap()
-  }, [heatmapPoints])
+  }, [heatmapPoints, styleVersion])
 
   // Clustering: fonte GeoJSON com `cluster: true` — o MapLibre/supercluster agrupa pontos
   // próximos conforme o zoom automaticamente, sem lógica de "quando é muito" no nosso código.
@@ -288,6 +336,7 @@ export function BaseMap({
         })
       }
 
+      applySelectionHighlight(map!, selectedMarkerIdRef.current)
       return true
     }
 
@@ -304,33 +353,15 @@ export function BaseMap({
     }
 
     applyClusters()
-  }, [clusteredMarkers])
+  }, [clusteredMarkers, styleVersion])
 
   // Realce do ponto selecionado — atualiza só a expressão de estilo do layer, sem recarregar
   // os dados da fonte (sincronização com a linha selecionada na tabela).
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !map.getLayer(UNCLUSTERED_LAYER_ID)) return
-
-    map.setPaintProperty(UNCLUSTERED_LAYER_ID, 'circle-stroke-width', [
-      'case',
-      ['==', ['get', 'avuId'], selectedMarkerId ?? '__none__'],
-      3,
-      1.5,
-    ])
-    map.setPaintProperty(UNCLUSTERED_LAYER_ID, 'circle-stroke-color', [
-      'case',
-      ['==', ['get', 'avuId'], selectedMarkerId ?? '__none__'],
-      '#3d0f20',
-      '#ffffff',
-    ])
-    map.setPaintProperty(UNCLUSTERED_LAYER_ID, 'circle-radius', [
-      'case',
-      ['==', ['get', 'avuId'], selectedMarkerId ?? '__none__'],
-      11,
-      8,
-    ])
-  }, [selectedMarkerId, clusteredMarkers])
+    if (!map) return
+    applySelectionHighlight(map, selectedMarkerId)
+  }, [selectedMarkerId, clusteredMarkers, styleVersion])
 
   // Centraliza o mapa sob demanda (ex.: clique numa AVU na tabela).
   useEffect(() => {

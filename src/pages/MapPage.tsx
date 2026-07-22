@@ -67,6 +67,9 @@ export function MapPage() {
   const heatmapPoints = useMemo(() => computeHeatmapPoints(avus), [avus])
   const selectedAvu = avus.find((avu) => avu.id === selectedAvuId) ?? null
 
+  const noAvusAtAll = !avusQuery.isLoading && avus.length === 0
+  const noGeoreferencedAvus = !avusQuery.isLoading && avus.length > 0 && clusteredMarkers.length === 0
+
   function selectAvu(avu: DashboardAvu) {
     setSelectedAvuId(avu.id)
     if (avu.latitude !== null && avu.longitude !== null) {
@@ -75,7 +78,7 @@ export function MapPage() {
   }
 
   return (
-    <div>
+    <div className="flex flex-col gap-4">
       <PageHeader
         title="Mapa"
         description="Mapa interativo de vulnerabilidades — todas as AVUs georreferenciadas dos filtros atuais."
@@ -83,16 +86,15 @@ export function MapPage() {
 
       <DashboardFiltersBar filters={filters} onChange={setFilters} />
 
-      <Tabs className="mb-4" tabs={VIEW_TABS} activeKey={viewMode} onChange={(key) => setViewMode(key as ViewMode)} />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Tabs tabs={VIEW_TABS} activeKey={viewMode} onChange={(key) => setViewMode(key as ViewMode)} />
+        {viewMode === 'markers' && <MapLegend />}
+      </div>
 
-      {viewMode === 'markers' && (
-        <div className="mb-4">
-          <MapLegend />
-        </div>
-      )}
-
-      <Card className="mb-4 overflow-hidden">
-        <div className="h-[28rem]">
+      {/* O mapa é o elemento principal da página — altura generosa (viewport), não uma
+          caixa pequena e secundária. */}
+      <Card className="overflow-hidden">
+        <div className="relative h-[70vh] min-h-[420px]">
           {viewMode === 'markers' ? (
             <BaseMap
               clusteredMarkers={clusteredMarkers}
@@ -102,6 +104,18 @@ export function MapPage() {
             />
           ) : (
             <BaseMap heatmapPoints={heatmapPoints} />
+          )}
+
+          {(noAvusAtAll || (viewMode === 'markers' && noGeoreferencedAvus)) && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div className="pointer-events-auto rounded-xl border border-gray-200 bg-white/95 px-5 py-3 text-center shadow-sm">
+                <p className="text-sm font-medium text-graphite-700">
+                  {noAvusAtAll
+                    ? 'Nenhuma AVU encontrada com os filtros atuais.'
+                    : 'Nenhuma AVU georreferenciada encontrada com os filtros atuais.'}
+                </p>
+              </div>
+            </div>
           )}
         </div>
       </Card>

@@ -63,17 +63,22 @@ export function AvuMapPanel({ avu, onClose }: { avu: Avu; onClose: () => void })
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Categoria" value={avu.categoria} />
+            <Field label="Subcategoria" value={avu.subcategoria} />
             <Field label="Responsável" value={avu.responsavel?.fullName} />
             <Field label="Prazo" value={avu.dataLimite ? formatDate(avu.dataLimite) : null} />
             <Field label="Nota SAP" value={avu.notaSap} />
             <Field label="Ordem de manutenção" value={avu.ordemManutencao} />
             <Field label="Empresa executante" value={avu.empresaExecutante} />
             <Field label="Fiscal" value={avu.fiscal?.fullName} />
+            <Field label="Local" value={avu.local} />
+            <Field label="Projeto" value={avu.projeto} />
+            <Field label="Gerência" value={avu.gerenciaResponsavel} />
+            <Field label="Data de criação" value={avu.dataCriacao ? formatDate(avu.dataCriacao) : null} />
           </div>
 
           <Button onClick={() => navigate(`${ROUTES.avus}/${avu.id}`)}>
             <ExternalLink className="size-4" />
-            Abrir detalhes
+            Ver detalhes do AVU
           </Button>
         </div>
       </aside>

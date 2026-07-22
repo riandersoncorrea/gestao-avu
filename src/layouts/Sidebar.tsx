@@ -76,12 +76,12 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-gray-200 bg-white transition-transform',
+          'fixed inset-y-0 left-0 z-50 flex h-screen w-72 flex-col border-r border-gray-200 bg-white transition-transform',
           'lg:static lg:z-0 lg:translate-x-0',
           isOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-5 py-5">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-gray-100 px-5 py-5">
           <img
             src={saoLuisEfcLogo}
             alt="Serviços Operacionais São Luís EFC"
@@ -97,13 +97,13 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           </button>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {navItems.map((item) => (
             <SidebarLink key={item.path} item={item} onNavigate={onClose} />
           ))}
         </nav>
 
-        <div className="border-t border-gray-100 p-4">
+        <div className="shrink-0 border-t border-gray-100 p-4">
           <div className="flex items-center gap-3 rounded-xl bg-gray-50 p-3">
             <div className="flex size-9 items-center justify-center rounded-full bg-primary-100 text-sm font-semibold text-primary-700">
               {initials}

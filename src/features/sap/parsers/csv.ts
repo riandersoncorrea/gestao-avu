@@ -1,8 +1,7 @@
 import Papa from 'papaparse'
-import type { SapParsedRow } from '../types'
-import { rowsToSapParsedRows } from './shared'
+import { parseAndValidateSapRows, type SapParseOutcome } from './shared'
 
-export async function parseSapCsv(file: File): Promise<Omit<SapParsedRow, 'avuNumeroExtraido'>[]> {
+export async function parseSapCsv(file: File): Promise<SapParseOutcome> {
   const text = await file.text()
 
   const result = Papa.parse<string[]>(text, {
@@ -15,5 +14,5 @@ export async function parseSapCsv(file: File): Promise<Omit<SapParsedRow, 'avuNu
     throw new Error(`Falha ao ler CSV: ${result.errors[0].message}`)
   }
 
-  return rowsToSapParsedRows(result.data)
+  return parseAndValidateSapRows(result.data)
 }

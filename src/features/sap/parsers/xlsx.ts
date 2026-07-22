@@ -1,8 +1,7 @@
 import ExcelJS from 'exceljs'
-import type { SapParsedRow } from '../types'
-import { rowsToSapParsedRows } from './shared'
+import { parseAndValidateSapRows, type SapParseOutcome } from './shared'
 
-export async function parseSapXlsx(file: File): Promise<Omit<SapParsedRow, 'avuNumeroExtraido'>[]> {
+export async function parseSapXlsx(file: File): Promise<SapParseOutcome> {
   const buffer = await file.arrayBuffer()
   const workbook = new ExcelJS.Workbook()
   await workbook.xlsx.load(buffer)
@@ -17,5 +16,5 @@ export async function parseSapXlsx(file: File): Promise<Omit<SapParsedRow, 'avuN
     rows.push(values.map((cell) => (cell && typeof cell === 'object' && 'text' in cell ? (cell as { text: string }).text : cell)))
   })
 
-  return rowsToSapParsedRows(rows)
+  return parseAndValidateSapRows(rows)
 }

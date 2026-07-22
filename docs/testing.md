@@ -548,3 +548,22 @@ Diferente da importação de PDF, esta parte **não depende de Edge Function** (
 | Reprocessamento | ✅ botão "Reprocessar" reexecuta o casamento sobre os `sap_records` já salvos, sem reimportar o arquivo — resultado consistente mantido |
 
 Dados de teste (`sap_imports`/`sap_records` das 4 importações de teste, mais a AVU semeada `AVU-2026-004155`) removidos ao final — `sap_records` some via `on delete cascade` ao apagar `sap_imports`.
+
+## `src/features/sap/parsers/shared.test.ts` e `sapTemplate.test.ts` (template oficial + validação de arquivo)
+
+17 testes cobrindo `parseAndValidateSapRows()` (arquivo válido sem avisos; bloqueio por coluna obrigatória ausente — uma e duas de uma vez; coluna desconhecida vira aviso sem bloquear; linha sem Nota/Descrição vira aviso listando o número da linha; data em formato não reconhecido vira aviso e o campo fica `null`; variações de cabeçalho conhecidas — ex. "Ordem de Manutenção" — continuam funcionando; arquivo vazio é erro bloqueante; linha em branco é ignorada sem gerar aviso) e `buildSapTemplateWorkbook()` (3 abas na ordem certa com DADOS_SAP primeiro — é a que o parser de XLSX lê via `worksheets[0]`; cabeçalho de DADOS_SAP/EXEMPLO bate exatamente com as colunas esperadas pelo parser, na mesma ordem; primeira linha congelada e autofiltro ativo; exemplo com o padrão `"AVU<numero> - <descrição>"`; INSTRUÇÕES documenta as 8 colunas; nome de arquivo oficial (`template_importacao_sap.xlsx`); workbook serializa em buffer sem lançar).
+
+## Verificação manual do template oficial e da validação de arquivo (mesma sessão da Sprint 9)
+
+**Decisão de escopo**: `Nota` e `Descrição` são as únicas colunas tratadas como obrigatórias (identidade do registro e origem do número da AVU, respectivamente) — as outras 6 são só contexto do SAP e continuam opcionais, mesmo estando entre os "8 campos" originalmente pedidos.
+
+O botão "Baixar modelo Excel" dispara um download real no navegador (`Blob` + link temporário) — a verificação de que o arquivo gerado *é* o esperado não foi feita inspecionando o download do navegador (o sandbox de automação usado nesta sessão não expõe o diretório de download de forma confiável), mas rodando a **mesma função de produção** (`buildSapTemplateWorkbook()`, importada diretamente de `src/features/sap/sapTemplate.ts` via `npx tsx`, sem duplicar nenhuma lógica) para gerar o arquivo real em disco e reimportá-lo pela UI:
+
+| Cenário pedido | Resultado |
+|---|---|
+| Template gera 3 abas (DADOS_SAP/INSTRUÇÕES/EXEMPLO) com cabeçalhos/exemplos/instruções | ✅ verificado lendo o `.xlsx` gerado com `exceljs` — 8 colunas na ordem certa, 3 linhas de exemplo em DADOS_SAP, tabela de instruções completa |
+| Reimportar o próprio template gerado | ✅ aceito sem erros — `total=3, não_encontrados=3` (esperado: os números de AVU fictícios do template não existem de verdade no banco) |
+| Testar arquivo com coluna obrigatória ausente (sem "Descrição") | ✅ **bloqueado antes de qualquer chamada de RPC** — nenhuma linha criada em `sap_imports`, mensagem de erro lista a coluna faltante |
+| Testar arquivo com dados inválidos (linha sem Nota, linha sem Descrição, data em formato "AAAA/MM/DD" não reconhecido) | ✅ **não bloqueado** — as 3 linhas foram processadas normalmente (`total=3, não_encontrados=3`, `erros=0`), com avisos informativos exibidos antes do processamento; a linha com data inválida teve o campo de data descartado (`null`) mas seguiu processada normalmente |
+
+Dados de teste (as 2 importações geradas nesses testes) removidos ao final.

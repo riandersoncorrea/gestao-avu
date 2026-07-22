@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { DragEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { FileUp, RefreshCw, Upload } from 'lucide-react'
+import { Download, FileUp, RefreshCw, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Card, CardContent } from '@/components/Card'
 import { Button } from '@/components/Button'
@@ -15,6 +15,7 @@ import { listImports, processImport, retryImport, startImport } from '@/features
 import { parseSapCsv } from '@/features/sap/parsers/csv'
 import { parseSapXlsx } from '@/features/sap/parsers/xlsx'
 import { DEFAULT_AVU_REGEX_PATTERN, extractAvuNumero } from '@/features/sap/extractAvuNumero'
+import { downloadSapTemplate } from '@/features/sap/sapTemplate'
 import { SapImportStatusBadge } from '@/features/sap/components/SapStatusBadges'
 import type { SapImport } from '@/features/sap/types'
 import { formatDateTime } from '@/utils/format'
@@ -32,9 +33,20 @@ export function SapImportPage() {
   const queryClient = useQueryClient()
   const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false)
   const [regexPattern, setRegexPattern] = useState(DEFAULT_AVU_REGEX_PATTERN)
 
   const importsQuery = useQuery({ queryKey: ['sap-imports'], queryFn: listImports })
+
+  async function handleDownloadTemplate() {
+    setIsDownloadingTemplate(true)
+    try {
+      await downloadSapTemplate()
+    } catch (error) {
+      show({ tone: 'error', title: 'Falha ao gerar o modelo', description: String(error) })
+    }
+    setIsDownloadingTemplate(false)
+  }
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['sap-imports'] })
@@ -53,8 +65,27 @@ export function SapImportPage() {
     for (const file of valid) {
       const type = fileType(file)!
       try {
-        const rows = type === 'csv' ? await parseSapCsv(file) : await parseSapXlsx(file)
-        const records = rows.map((row) => ({ ...row, avuNumeroExtraido: extractAvuNumero(row.descricao, regexPattern) }))
+        const outcome = type === 'csv' ? await parseSapCsv(file) : await parseSapXlsx(file)
+
+        if (outcome.hasBlockingErrors) {
+          show({
+            tone: 'error',
+            title: `Falha ao processar ${file.name}`,
+            description: outcome.issues.map((issue) => issue.message).join(' '),
+          })
+          continue
+        }
+
+        const warnings = outcome.issues.filter((issue) => issue.level === 'warning')
+        if (warnings.length > 0) {
+          show({
+            tone: 'warning',
+            title: `Avisos em ${file.name}`,
+            description: warnings.map((issue) => issue.message).join(' '),
+          })
+        }
+
+        const records = outcome.rows.map((row) => ({ ...row, avuNumeroExtraido: extractAvuNumero(row.descricao, regexPattern) }))
 
         const importId = crypto.randomUUID()
         await startImport(importId, file.name, type, regexPattern)
@@ -115,7 +146,16 @@ export function SapImportPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Importação SAP" description="Importe arquivos exportados do SAP (CSV/XLSX) para relacionar e atualizar AVUs." />
+      <PageHeader
+        title="Importação SAP"
+        description="Importe arquivos exportados do SAP (CSV/XLSX) para relacionar e atualizar AVUs."
+        actions={
+          <Button variant="outline" size="sm" isLoading={isDownloadingTemplate} onClick={handleDownloadTemplate}>
+            <Download className="size-4" />
+            Baixar modelo Excel
+          </Button>
+        }
+      />
 
       <Card>
         <CardContent className="flex flex-col gap-4">

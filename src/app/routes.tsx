@@ -132,4 +132,9 @@ export const router = createBrowserRouter([
     path: '*',
     element: withSuspense(<NotFoundPage />),
   },
-])
+], {
+  // Mesmo valor usado em `base` (vite.config.ts) — "/" em dev, "/gestao-avu/" no build de
+  // produção (GitHub Pages). Sem isso, `navigate('/avus')`/`<Link to="/avus">` etc. resolveriam
+  // a partir da raiz do domínio, ignorando o subcaminho onde o app está publicado.
+  basename: import.meta.env.BASE_URL,
+})

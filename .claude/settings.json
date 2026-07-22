@@ -1,7 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "Bash(sed -n '/Importação de PDF/,/^## /p' docs/architecture.md | head -150)"
+      "Bash(sed -n '/Importação de PDF/,/^## /p' docs/architecture.md | head -150)",
+      "Bash(python3 -c \"import PIL; print\\('Pillow', PIL.__version__\\)\")",
+      "Bash(npx --yes --package=playwright@1.61.1 node -e \"console.log\\('ok'\\)\")",
+      "Bash(set -e)",
+      "Bash(mkdir -p __TRACKED_VAR__/manual-tooling/shots)",
+      "Bash(npm init *)",
+      "Bash(npm install *)",
+      "Bash(AVU_EMAIL=\"ricorrea59@gmail.com\" AVU_PASSWORD=\"adm1234\" node capture.mjs)",
+      "Bash(AVU_EMAIL=\"ricorrea59@gmail.com\" AVU_PASSWORD=\"adm1234\" node demo-flow.mjs)"
     ],
     "additionalDirectories": [
       "/Users/rianderson/Documents/Projetos/AVU/docs"

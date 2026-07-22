@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { derivePermissionSet, type RawUserRoleRow } from '@/features/auth/permissions'
+import { ROUTES } from '@/lib/routes'
 import type { AccessProfile, Profile } from '@/types'
 
 export async function signIn(email: string, password: string) {
@@ -34,7 +35,11 @@ export async function signUp(params: { fullName: string; email: string; password
 
 export async function requestPasswordReset(email: string) {
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/redefinir-senha`,
+    // `BASE_URL` já é "/" em dev e "/gestao-avu/" no build de produção (ver vite.config.ts) —
+    // sem isso, o link do e-mail apontaria pra raiz do domínio, ignorando o subcaminho do
+    // GitHub Pages. `ROUTES.resetPassword` tem uma barra inicial e `BASE_URL` sempre termina em
+    // barra, por isso o `.slice(1)` evita duplicar a barra na concatenação.
+    redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}${ROUTES.resetPassword.slice(1)}`,
   })
   if (error) throw error
 }

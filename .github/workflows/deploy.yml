@@ -1,0 +1,69 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# Permite no máximo uma publicação por vez; uma nova a interrompe se ainda estiver rodando.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Build de produção
+        run: npm run build
+        env:
+          # Nomes exatos das variáveis VITE_* realmente lidas pelo código (src/lib/supabase.ts,
+          # src/features/gis/mapStyles.ts) — o Vite as embute no bundle em tempo de build, então
+          # precisam estar disponíveis aqui, não em runtime. Configuradas como Secrets do
+          # repositório (Settings > Secrets and variables > Actions), nunca commitadas.
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_MAPTILER_KEY: ${{ secrets.VITE_MAPTILER_KEY }}
+
+      - name: Desabilitar processamento Jekyll
+        run: touch dist/.nojekyll
+
+      - name: Fallback de SPA para rotas profundas (BrowserRouter)
+        # GitHub Pages é um host estático puro: uma requisição direta a /gestao-avu/avus não
+        # encontra um arquivo real e devolveria 404. Copiar index.html para 404.html faz o
+        # GitHub Pages servir o app nesse caso — o React Router então assume o roteamento no
+        # cliente e renderiza a rota certa. Ver docs/deployment.md.
+        run: cp dist/index.html dist/404.html
+
+      - name: Preparar artefato do Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publicar no GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

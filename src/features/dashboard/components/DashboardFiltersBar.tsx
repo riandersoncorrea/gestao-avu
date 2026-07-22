@@ -39,7 +39,10 @@ export function DashboardFiltersBar({ filters, onChange }: DashboardFiltersBarPr
   return (
     <Card className="mb-4">
       <CardContent className="flex flex-col gap-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {/* `items-start`: sem isso, o Grid estica todos os itens da linha pra igualar ao mais
+            alto — como os campos de data têm `label` (mais altos) e os Selects ao lado não,
+            isso deixava os Selects "esticados" com espaço vazio embaixo. */}
+        <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <div className="flex gap-2 lg:col-span-2">
             {/* `label` visível em vez de só `aria-label`: em navegadores móveis (Safari iOS),
                 um <input type="date"> vazio não mostra nenhuma dica de formato como no

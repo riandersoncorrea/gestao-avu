@@ -61,7 +61,9 @@ export function PlanningFiltersBar({ filters, onChange }: PlanningFiltersBarProp
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {/* `items-start`: evita que o Grid estique os Selects (mais baixos) pra igualar aos
+            campos de data (mais altos por causa do `label`). */}
+        <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Select
             placeholder="Status"
             value={filters.status}
@@ -110,20 +112,24 @@ export function PlanningFiltersBar({ filters, onChange }: PlanningFiltersBarProp
             onChange={(event) => set('responsavelId', event.target.value)}
             options={(profilesQuery.data ?? []).map((p) => ({ value: p.id, label: p.fullName }))}
           />
-          <div className="flex gap-2">
-            <Input
-              type="date"
-              aria-label="Período — início"
-              value={filters.periodoInicio}
-              onChange={(event) => set('periodoInicio', event.target.value)}
-            />
-            <Input
-              type="date"
-              aria-label="Período — fim"
-              value={filters.periodoFim}
-              onChange={(event) => set('periodoFim', event.target.value)}
-            />
-          </div>
+          {/* Cada data na sua própria célula de grid (não dividindo uma via `flex`) — duas
+              datas espremidas numa coluna só transbordavam pra fora do card em telas menores.
+              `label` visível: em navegadores móveis (Safari iOS), um <input type="date"> vazio
+              não mostra nenhuma dica de formato como no desktop. */}
+          <Input
+            type="date"
+            label="Período — início"
+            value={filters.periodoInicio}
+            onChange={(event) => set('periodoInicio', event.target.value)}
+            className="min-w-0"
+          />
+          <Input
+            type="date"
+            label="Período — fim"
+            value={filters.periodoFim}
+            onChange={(event) => set('periodoFim', event.target.value)}
+            className="min-w-0"
+          />
         </div>
 
         {hasActiveFilters && (

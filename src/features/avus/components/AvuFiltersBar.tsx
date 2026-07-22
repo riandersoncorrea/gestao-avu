@@ -48,7 +48,9 @@ export function AvuFiltersBar({ filters, onChange }: AvuFiltersBarProps) {
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {/* `items-start`: evita que o Grid estique os Selects (mais baixos) pra igualar aos
+            campos de data (mais altos por causa do `label`). */}
+        <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Select
             placeholder="Status"
             value={filters.status}
@@ -91,16 +93,18 @@ export function AvuFiltersBar({ filters, onChange }: AvuFiltersBarProps) {
             onChange={(event) => set('responsavelId', event.target.value)}
             options={(profilesQuery.data ?? []).map((p) => ({ value: p.id, label: p.fullName }))}
           />
+          {/* `label` visível: em navegadores móveis (Safari iOS), um <input type="date"> vazio
+              não mostra nenhuma dica de formato como no desktop. */}
           <Input
             type="date"
-            aria-label="Período — início"
+            label="Período — início"
             value={filters.periodoInicio}
             onChange={(event) => set('periodoInicio', event.target.value)}
             className="min-w-0"
           />
           <Input
             type="date"
-            aria-label="Período — fim"
+            label="Período — fim"
             value={filters.periodoFim}
             onChange={(event) => set('periodoFim', event.target.value)}
             className="min-w-0"

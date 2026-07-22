@@ -18,7 +18,9 @@
       "Bash(AVU_EMAIL=\"ricorrea59@gmail.com\" AVU_PASSWORD=\"adm1234\" node company-name.mjs set \"Contratada Demo LTDA\")",
       "Bash(AVU_EMAIL=\"ricorrea59@gmail.com\" AVU_PASSWORD=\"adm1234\" node company-name.mjs set \"\")",
       "Bash(python3 -c \"from PIL import Image; im = Image.open\\('/private/tmp/claude-501/-Users-rianderson-Documents-Projetos-AVU/f226e7c3-82e9-48f8-b2c6-87bd4c8bb0f5/scratchpad/manual-tooling/shots/18-fiscalizacao-revisao.png'\\); print\\(im.size\\)\")",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(AVU_EMAIL=\"ricorrea59@gmail.com\" AVU_PASSWORD=\"adm1234\" DEMO_AVU_ID=\"15c1d8a2-a369-4bda-bff5-b6a96b888e3e\" node demo-flow.mjs)",
+      "Bash(python3 annotate.py)"
     ],
     "additionalDirectories": [
       "/Users/rianderson/Documents/Projetos/AVU/docs"

@@ -30,7 +30,12 @@ export function MainLayout() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    // `h-dvh` (altura dinâmica de viewport) em vez de `h-screen` (100vh estático) — em
+    // navegadores móveis (Safari iOS, Chrome Android), 100vh é calculado a partir do maior
+    // viewport possível (com a barra de endereço recolhida), maior que a área realmente
+    // visível quando essa barra está expandida — isso cortava conteúdo/deixava sobra na parte
+    // de baixo da tela. `dvh` acompanha o viewport visual em tempo real.
+    <div className="flex h-dvh overflow-hidden bg-gray-50">
       <Sidebar isOpen={isOpen} onClose={close} />
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">

@@ -82,7 +82,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex h-screen w-72 flex-col border-r border-gray-200 bg-white transition-transform',
+          // `h-dvh` em vez de `h-screen` — mesmo motivo do MainLayout: acompanha o viewport
+          // visual real em navegadores móveis (barra de endereço recolhendo/expandindo).
+          'fixed inset-y-0 left-0 z-50 flex h-dvh w-72 flex-col border-r border-gray-200 bg-white transition-transform',
           'lg:static lg:z-0 lg:translate-x-0',
           isOpen ? 'translate-x-0' : '-translate-x-full',
         )}

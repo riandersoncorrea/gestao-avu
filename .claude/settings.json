@@ -15,7 +15,10 @@
       "Bash(awk -F'=' '/VITE_SUPABASE_ANON_KEY/{print length\\($0\\), length\\($2\\)}' .env)",
       "Bash(python3 -)",
       "Bash(AVU_EMAIL=\"ricorrea59@gmail.com\" AVU_PASSWORD=\"adm1234\" node company-name.mjs get)",
-      "Bash(AVU_EMAIL=\"ricorrea59@gmail.com\" AVU_PASSWORD=\"adm1234\" node company-name.mjs set \"Contratada Demo LTDA\")"
+      "Bash(AVU_EMAIL=\"ricorrea59@gmail.com\" AVU_PASSWORD=\"adm1234\" node company-name.mjs set \"Contratada Demo LTDA\")",
+      "Bash(AVU_EMAIL=\"ricorrea59@gmail.com\" AVU_PASSWORD=\"adm1234\" node company-name.mjs set \"\")",
+      "Bash(python3 -c \"from PIL import Image; im = Image.open\\('/private/tmp/claude-501/-Users-rianderson-Documents-Projetos-AVU/f226e7c3-82e9-48f8-b2c6-87bd4c8bb0f5/scratchpad/manual-tooling/shots/18-fiscalizacao-revisao.png'\\); print\\(im.size\\)\")",
+      "Bash(python3 -c ' *)"
     ],
     "additionalDirectories": [
       "/Users/rianderson/Documents/Projetos/AVU/docs"

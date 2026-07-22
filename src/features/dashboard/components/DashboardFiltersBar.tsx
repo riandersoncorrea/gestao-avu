@@ -41,15 +41,18 @@ export function DashboardFiltersBar({ filters, onChange }: DashboardFiltersBarPr
       <CardContent className="flex flex-col gap-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <div className="flex gap-2 lg:col-span-2">
+            {/* `label` visível em vez de só `aria-label`: em navegadores móveis (Safari iOS),
+                um <input type="date"> vazio não mostra nenhuma dica de formato como no
+                desktop — sem um rótulo visível, o campo aparece em branco e sem contexto. */}
             <Input
               type="date"
-              aria-label="Período — início"
+              label="Período — início"
               value={filters.periodoInicio}
               onChange={(event) => set('periodoInicio', event.target.value)}
             />
             <Input
               type="date"
-              aria-label="Período — fim"
+              label="Período — fim"
               value={filters.periodoFim}
               onChange={(event) => set('periodoFim', event.target.value)}
             />

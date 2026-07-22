@@ -9,7 +9,13 @@
       "Bash(npm init *)",
       "Bash(npm install *)",
       "Bash(AVU_EMAIL=\"ricorrea59@gmail.com\" AVU_PASSWORD=\"adm1234\" node capture.mjs)",
-      "Bash(AVU_EMAIL=\"ricorrea59@gmail.com\" AVU_PASSWORD=\"adm1234\" node demo-flow.mjs)"
+      "Bash(AVU_EMAIL=\"ricorrea59@gmail.com\" AVU_PASSWORD=\"adm1234\" node demo-flow.mjs)",
+      "Bash(AVU_EMAIL=\"ricorrea59@gmail.com\" AVU_PASSWORD=\"adm1234\" DEMO_AVU_ID=\"b2b91e0a-f859-4144-a72e-2d46c5eaae54\" node demo-flow.mjs)",
+      "Bash(xargs -I{} sh -c 'echo ==={}===; cat {}')",
+      "Bash(awk -F'=' '/VITE_SUPABASE_ANON_KEY/{print length\\($0\\), length\\($2\\)}' .env)",
+      "Bash(python3 -)",
+      "Bash(AVU_EMAIL=\"ricorrea59@gmail.com\" AVU_PASSWORD=\"adm1234\" node company-name.mjs get)",
+      "Bash(AVU_EMAIL=\"ricorrea59@gmail.com\" AVU_PASSWORD=\"adm1234\" node company-name.mjs set \"Contratada Demo LTDA\")"
     ],
     "additionalDirectories": [
       "/Users/rianderson/Documents/Projetos/AVU/docs"

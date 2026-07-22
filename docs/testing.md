@@ -567,3 +567,24 @@ O botão "Baixar modelo Excel" dispara um download real no navegador (`Blob` + l
 | Testar arquivo com dados inválidos (linha sem Nota, linha sem Descrição, data em formato "AAAA/MM/DD" não reconhecido) | ✅ **não bloqueado** — as 3 linhas foram processadas normalmente (`total=3, não_encontrados=3`, `erros=0`), com avisos informativos exibidos antes do processamento; a linha com data inválida teve o campo de data descartado (`null`) mas seguiu processada normalmente |
 
 Dados de teste (as 2 importações geradas nesses testes) removidos ao final.
+
+## `src/features/avus/describeAuditChanges.test.ts` e `deadlineCheckThrottle.test.ts` (Sprint 10 — Governança)
+
+10 testes cobrindo lógica pura sem rede: `describeAuditChanges()` (sem `metadata.changes` → rótulo genérico "Dados atualizados"; uma mudança → rótulo singular com o nome do campo; múltiplas mudanças → rótulo "N campos alterados" e comentário multi-linha "Campo: de → para" por linha; campo desconhecido usa o nome bruto; valores `null`/vazios viram travessão) e `shouldRunDeadlineCheck()` (nunca rodou → `true`; dentro do throttle → `false`; exatamente no limite → `true`; threshold customizado respeitado).
+
+## Verificação manual de Auditoria/Notificações/Linha do tempo (Sprint 10)
+
+Só existe um perfil real neste ambiente (`Rianderson Correa`, papéis `contratada`+`admin`, sem `company_name`) — isso limita testar ao vivo os fan-outs que **excluem o próprio autor da ação** (`avu_submit_evidence`, `sap_import_process_batch`/`retry`: `p.id <> auth.uid()`), já que o único usuário disponível seria simultaneamente quem dispara a ação e o fiscal/responsável da AVU. Para esses dois casos, a lógica da consulta que determina o destinatário foi verificada isoladamente (mesma query do `insert into notifications select ...`, rodada em isolamento com um `auth.uid()` simulado diferente do fiscal/responsável — retorna corretamente o perfil-alvo), em vez de observar uma notificação de verdade persistida para um segundo usuário. Todo o resto foi testado de ponta a ponta:
+
+| Cenário pedido | Resultado |
+|---|---|
+| Migration `0010` (6 funções redefinidas/criadas) | ✅ aplicada e verificada via `information_schema.routines` — `audit_avus_change` (trigger), `avu_generate_deadline_notifications`/`avu_submit_evidence`/`log_avu_access`/`sap_import_process_batch`/`sap_import_retry` (as 3 últimas redefinidas, mesma assinatura) |
+| Diff de auditoria (`audit_avus_change`) | ✅ update direto em AVU de teste (descrição + prioridade) → `audit_logs.metadata.changes` com os 2 campos e valores de/para corretos; timeline e página de Auditoria renderizam "2 campos alterados" com o diff linha a linha |
+| Log de acesso ("quem acessou") | ✅ abrir o detalhe da AVU gravou exatamente **uma** linha `avu.viewed` (sem duplicar em re-render), com `actor_id` do usuário logado; **não aparece na timeline da AVU** (só na página de Auditoria), como projetado |
+| Linha do tempo completa | ✅ evidência de teste (`avu_evidences`) e Nota SAP de teste (`sap_records`) inseridas diretamente → ambas apareceram na timeline com ícone/rótulo/comentário corretos, junto com "AVU criada"/diff de atualização |
+| Página de Auditoria (`/auditoria`) | ✅ filtros (entidade/ação/usuário/data) e tabela renderizando corretamente, diff na coluna Detalhe, link para a AVU quando `entity='avus'` |
+| `avu_generate_deadline_notifications` (botão "Verificar prazos agora") | ✅ AVU de teste vencida (`data_limite` = ontem) e AVU próxima do vencimento (`data_limite` = +2 dias), ambas com fiscal/responsável = o usuário logado → 2 notificações geradas com o texto certo ("AVU vencida"/"Prazo próximo"), badge do sino atualizado, chamada de novo não duplicou (idempotência de 20h) |
+| Página de Notificações (`/notificacoes`) | ✅ abas Todas/Não lidas/Lidas, marcar individual como lida (clique navega para a AVU e marca lida), contador do sino atualiza |
+| Fan-out de evidência/SAP (`p.id <> auth.uid()`) | ⚠️ não observado de ponta a ponta (limitação de ambiente com 1 usuário só, ver acima) — lógica da consulta verificada isoladamente |
+
+Dados de teste (2 AVUs, 1 evidência, 1 importação SAP + 1 registro, 2 notificações, entradas de `audit_logs` relacionadas) removidos ao final.

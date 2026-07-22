@@ -51,14 +51,34 @@ Tela dedicada de análise do Fiscal (`pages/InspectionsPage.tsx` — fila por bu
 
 Segunda parte do mesmo épico, integração SAP: `pages/SapImportPage.tsx`/`SapImportDetailPage.tsx` (rotas `/importacao-sap` e `/importacao-sap/:id`, mesma régua de permissão) implementam a importação de arquivos **exportados** do SAP (CSV/XLSX — não conexão direta, fora de escopo), com extração automática do número da AVU da descrição via regex configurável, relacionamento SAP→AVU por match exato normalizado (`sap_imports`/`sap_records`, migration `0009`), tela de inconsistências (processados/relacionados/não relacionados/duplicados/erros) e reprocessamento. Diferente do PDF, roda 100% no client (`papaparse`/`exceljs`) — sem Edge Function. Testado de ponta a ponta (CSV, XLSX, duplicidade dentro e entre lotes, AVU inexistente, atualização de `nota_sap`/`ordem_manutencao`, reprocessamento). Ver `docs/database.md` (migration `0009`) e `docs/architecture.md` ("Integração SAP").
 
-## Sprint 10 — Relatórios / PDF
+## Sprint 10 — Governança/Rastreabilidade (concluída)
+
+Primeira fatia de um pedido maior ("transformar o MVP numa plataforma inteligente de gestão de vulnerabilidades", 20 frentes — detecção de duplicidade, IA, relatórios, auditoria, notificações, timeline, BI, mobile, segurança, performance, testes, deploy...). Grande demais pra uma sprint só; o usuário escolheu começar por Auditoria + Notificações + Linha do tempo (as 17 frentes restantes ficam listadas em "Depois", abaixo, para sprints seguintes).
+
+Nenhuma tabela nova — tudo em cima de `audit_logs`/`notifications` já existentes desde as Sprints 1/5 (migration `0010_governanca.sql`):
+- **Auditoria com diff real**: `audit_avus_change()` passou a gravar `metadata.changes` (só os campos que de fato mudaram, com valor anterior/novo) em vez do genérico `metadata=null` de antes. Nova RPC `log_avu_access` grava "quem acessou" (`action='avu.viewed'`), separado de "quem alterou". Nova página `/auditoria` (`RequirePermission permission="history.view"`) com filtros (entidade/ação/usuário/data) e o diff renderizado por linha.
+- **Notificações**: dois novos eventos (nova evidência enviada, Nota/OM do SAP vinculada) somados ao que já existia desde a Sprint 5 (decisão de fiscalização). Prazo próximo/AVU vencida via RPC idempotente chamada sob demanda (`avu_generate_deadline_notifications` — sem `pg_cron`, plano Supabase Free não tem a extensão; ver `docs/architecture.md` para o caminho de upgrade). Nova página `/notificacoes` (central completa, além do sino já existente).
+- **Linha do tempo completa**: `AvuTimeline` passou a mesclar também evidências (`avu_evidences`) e vínculo SAP (`sap_records`), além de `audit_logs`/`avu_status_history` que já tinha.
+
+Ver `docs/database.md` (migration `0010`), `docs/architecture.md` ("Governança/Rastreabilidade") e `docs/testing.md`.
+
+## Sprint 11 — Relatórios / PDF
 
 - Escolher e implementar a geração de PDF (`@react-pdf/renderer` vs. Edge Function + Puppeteer — ver `docs/architecture.md`).
 - Exportação de laudos de fiscalização e relatórios gerenciais a partir dos dados de `avus`/`audit_logs` já existentes.
+- Exportação Excel dos mesmos relatórios.
 
 ## Depois
 
-- Integração SAP PM completa (sincronização bidirecional de ordens de manutenção).
+Demais frentes do pedido "plataforma inteligente" (Sprint 10, ver acima) ainda não implementadas — cada uma comparável em escopo a uma sprint:
+
+- **Camada analítica/IA**: detecção de duplicidade (descrição/localização/coordenadas/categoria/proximidade temporal, sempre com validação humana — nunca exclusão automática), identificação de riscos recorrentes (locais/categorias com reincidência), agrupamento de vulnerabilidades semelhantes, resumos executivos automáticos, sugestão (não decisão) de prioridade, busca em linguagem natural com camada seguraça de consulta (nunca SQL arbitrário gerado por IA).
+- **Gestão documental**: versionamento e organização central de PDF original/fotos/vídeos/evidências/OM/Nota/histórico/aprovações num só lugar (hoje espalhado entre `avu_attachments`/`avu_evidences`/`sap_records`/`avu_approvals`).
+- **BI operacional**: indicadores de produtividade por contratada/fiscal/gerência; dashboard de reincidência por local/categoria/subcategoria/quantidade/frequência.
+- **Documentação transversal**: `AI.md`, `SAP.md`, `GIS.md`, `security.md`, `deployment.md`, `api.md` — reescrita/consolidação de toda a documentação, mais natural como sprint dedicada depois que mais funcionalidade estiver implementada.
+- **Preparação mobile**: React Native/Expo, offline-first, sincronização, GPS e fotos georreferenciadas — preparar arquitetura/API, não construir o app.
+- **Revisão de segurança/performance/testes dedicada**: auditoria completa de RLS/autenticação/autorização/storage/upload/segredos; índices e paginação onde ainda faltam; suíte de testes de integração/workflow (hoje a cobertura é unitária/RLS manual).
+- Integração SAP PM completa (sincronização bidirecional de ordens de manutenção, API/OData/BTP — hoje é só importação de arquivo, ver `docs/architecture.md`).
 - OCR/IA para leitura automática de evidências e sugestão de classificação de AVUs.
 - App mobile (reuso da camada `services/` já isolada da UI).
 - Modo offline (cache local via TanStack Query + sincronização).

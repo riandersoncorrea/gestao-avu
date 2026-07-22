@@ -14,13 +14,16 @@ export interface KpiCardProps {
 export function KpiCard({ label, value, icon: Icon, trend, className }: KpiCardProps) {
   return (
     <Card className={cn('p-5', className)}>
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm text-gray-500">{label}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          {/* `min-h-10` reserva o espaço de 2 linhas de `text-sm` (2 × 1.25rem) mesmo quando o
+              rótulo cabe em 1 linha — assim o valor abaixo sempre começa na mesma altura,
+              independente do rótulo quebrar ou não. */}
+          <p className="min-h-10 text-sm text-gray-500">{label}</p>
           <p className="mt-2 text-2xl font-semibold text-graphite-800">{value}</p>
         </div>
         {Icon && (
-          <div className="rounded-xl bg-primary-50 p-2.5 text-primary-600">
+          <div className="shrink-0 rounded-xl bg-primary-50 p-2.5 text-primary-600">
             <Icon className="size-5" />
           </div>
         )}

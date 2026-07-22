@@ -91,7 +91,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           <img
             src={saoLuisEfcLogo}
             alt="Serviços Operacionais São Luís EFC"
-            className="h-10 w-auto"
+            className="h-14 w-35"
           />
           <button
             type="button"

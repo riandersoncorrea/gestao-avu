@@ -588,3 +588,24 @@ Só existe um perfil real neste ambiente (`Rianderson Correa`, papéis `contrata
 | Fan-out de evidência/SAP (`p.id <> auth.uid()`) | ⚠️ não observado de ponta a ponta (limitação de ambiente com 1 usuário só, ver acima) — lógica da consulta verificada isoladamente |
 
 Dados de teste (2 AVUs, 1 evidência, 1 importação SAP + 1 registro, 2 notificações, entradas de `audit_logs` relacionadas) removidos ao final.
+
+## `src/features/reports/describeConclusao.test.ts` e `avusReportExcel.test.ts` (Sprint 11 — Relatórios)
+
+13 testes cobrindo lógica pura: `describeConclusao()` (sem decisão de fiscalização → cai no status atual; com decisão sem comentário → só o rótulo; com comentário → rótulo + comentário; as 3 decisões — aprovado/reprovado/complementação) e `buildAvusReportWorkbook()` (mesmo padrão de `sapTemplate.test.ts`: cabeçalho na ordem certa, uma linha por AVU com status/responsável/fiscal resolvidos, congelamento/autofiltro, datas como células de data reais, serializa em buffer sem lançar mesmo com lista vazia).
+
+## Verificação manual de Relatórios (Sprint 11)
+
+Diferente do template SAP (gerado via `npx tsx` fora do navegador), o laudo por AVU depende de dados **e sessão autenticada reais** do Supabase (RLS, signed URLs de Storage) — testar via `tsx` fora do navegador exigiria replicar uma sessão autenticada manualmente, então a verificação aqui foi feita **inteiramente dentro do navegador**, via `import()` dinâmico dos módulos reais direto no console (mesma técnica já usada nesta sessão para chamar `uploadEvidences` sem passar pela tela do Portal), o que também tem a vantagem de exercitar a sessão/RLS de verdade, não uma simulação.
+
+**Dados de teste**: 1 AVU (`status='EM_EXECUCAO'`, sem passar pela máquina de estados — inserida direto via SQL, então sem entrada em `avu_status_history`, logo sem "Data de conclusão"), 1 foto em Documentos/Fotos (upload real via UI, arquivo PNG mínimo), 1 evidência de foto (upload real via `uploadEvidences()` chamado do console, mesmo código de produção do Portal), 1 decisão de fiscalização (`avu_approvals`, decisão "reprovado" com comentário) inserida direto via SQL.
+
+| Cenário pedido | Resultado |
+|---|---|
+| `getAvuLaudoData()` monta todos os campos corretamente | ✅ número/descrição/responsável/OM/Nota SAP corretos; `dataConclusao=null` (AVU nunca passou pela máquina de estados, como esperado); `conclusao="Reprovado — <comentário do fiscal>"` (decisão de fiscalização venceu o fallback de status, como projetado); 1 foto antes + 1 foto depois, cada uma com signed URL de verdade do Storage |
+| Geração do PDF do laudo (`downloadAvuLaudoPdf`) | ✅ chamada real (dados reais + fetch das imagens via signed URL + render do `@react-pdf/renderer`) completou sem lançar exceção — download disparado |
+| Botão "Relatório PDF" no detalhe da AVU | ✅ clique não gerou nenhum erro no console, estado de carregamento do botão funcionou |
+| Página `/relatorios` — preview filtrado | ✅ `AvuFiltersBar` reaproveitada renderiza e filtra; tabela de preview mostra a AVU de teste |
+| Exportação em lote — Excel (`downloadAvusReportExcel`) | ✅ workbook gerado com buffer de tamanho > 0, sem lançar |
+| Exportação em lote — PDF (`downloadAvusReportPdf`) | ✅ chamada real completou sem lançar exceção, download disparado |
+
+Dados de teste (1 AVU, 1 decisão de fiscalização, 1 anexo + arquivo físico no bucket `avu-attachments`, 1 evidência + arquivo físico no bucket `avu-evidences`) removidos ao final — os arquivos físicos foram removidos explicitamente via `supabase.storage.from(bucket).remove(...)` antes de apagar a AVU (o `on delete cascade` do Postgres limpa as linhas das tabelas, mas não os objetos no Storage).

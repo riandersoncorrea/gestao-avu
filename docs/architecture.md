@@ -26,14 +26,14 @@ A Sprint 0 entregou a **fundação técnica**: scaffolding, design system, layou
 
 O projeto tem como requisito futuro explícito a integração com GIS corporativo e camadas de dados geoespaciais (AVUs georreferenciadas, malha ferroviária, ativos). MapLibre GL JS tem suporte nativo a vector tiles, estilos customizados e camadas de dados performáticas — o caminho natural para GIS "de verdade". Leaflet seria mais simples para exibir só marcadores, mas exigiria migração quando o GIS evoluir. Nesta sprint, `features/gis/components/BaseMap.tsx` renderiza apenas o mapa base (estilo demo público do MapLibre, sem API key), usado por `pages/MapPage.tsx`.
 
-### PDF — arquitetura preparada, biblioteca não instalada ainda
+### Relatórios — laudo por AVU + exportação em lote (Sprint 11)
 
-`src/services/pdf/` define o contrato (`PdfDocumentDefinition`, `generatePdf()`) que a sprint de Relatórios vai implementar. Duas opções ficam em aberto para aquele momento:
+Decisão tomada: **`@react-pdf/renderer`** no cliente (a opção que já estava em aberto nesta seção — "simples, sem dependência de servidor, bom para laudos com layout previsível" — e que se confirmou suficiente; não foi necessária uma função Edge/Puppeteer). Vive inteiramente em `src/features/reports/`, não em `src/services/pdf/` (aquele contrato genérico `PdfDocumentDefinition`/`generatePdf()` é só texto — heading/body — e não serve pra um laudo com campos estruturados e fotos; continua existindo como estava, documentado, não implementado).
 
-- **`@react-pdf/renderer`** (cliente): simples, sem dependência de servidor, bom para laudos com layout previsível.
-- **Função Edge do Supabase + Puppeteer** (servidor): melhor para paginação complexa e quando o PDF precisa combinar dados de múltiplas fontes (SAP, GIS, fotos).
-
-A decisão fica para quando os requisitos de relatório estiverem definidos.
+- **Laudo por AVU** (`AvuLaudoDocument.tsx`/`avuLaudoPdf.ts`/`avuLaudoService.ts`) — Número/Descrição/Data de criação/Data de conclusão/Responsável/OM/Nota SAP/Conclusão + duas galerias de foto. "Fotos antes" vem de `avu_attachments` (`kind='photo'`, upload na criação/triagem) e "Fotos depois" de `avu_evidences` (`tipo='foto'`, evidência de execução da Contratada) — mesma distinção "antes/depois" que os dois fluxos já representavam antes desta sprint, só agora reunidos num documento. Ambas embutidas no PDF via `<Image src={signedUrl}>`, reaproveitando `getAttachmentUrl()`/`getEvidenceUrl()` já existentes (10 min de validade — suficiente pro tempo de geração/download). "Conclusão" é a última decisão de fiscalização (`listApprovals(avuId)[0]`, já ordenada `created_at desc`) formatada com o comentário do fiscal, ou o status atual como fallback quando a AVU nunca passou por fiscalização (`describeConclusao()`, função pura testada).
+- **Relatório gerencial em lote** (`AvusReportDocument.tsx`/`avusReportPdf.ts` para PDF paisagem tabular, `avusReportExcel.ts` para Excel) — `pages/ReportsPage.tsx` (antes um placeholder da Sprint 0) reaproveita `AvuFiltersBar`/`listAvus()` já existentes de `features/avus/` — os mesmos filtros e a mesma busca da página `/avus`, sem duplicar nada.
+- **Sem permissão nova**: `/relatorios` não ganhou nenhuma chave de permissão — a segurança de verdade já vem da RLS nas mesmas tabelas (`avus`/`avu_attachments`/`avu_evidences`/`avu_approvals`) que o resto do app usa; quem gera um laudo ou exporta só vê as AVUs que já podia ver (`can_view_avu()`).
+- **Sem preview em tela**: gera o arquivo e dispara o download direto no navegador (`Blob` + link temporário), mesmo padrão já usado em `downloadSapTemplate` (Sprint 9).
 
 ### Importação de PDF e abstração de `AIProvider` (Sprint 9)
 

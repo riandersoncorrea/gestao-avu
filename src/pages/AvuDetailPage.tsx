@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ClipboardCheck, Pencil, Trash2 } from 'lucide-react'
+import { ClipboardCheck, FileText, Pencil, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { LoadingState } from '@/components/LoadingState'
 import { EmptyState } from '@/components/EmptyState'
@@ -15,6 +15,7 @@ import { useDisclosure } from '@/hooks/useDisclosure'
 import { useAuth } from '@/features/auth/AuthContext'
 import { deleteAvu, getAvuById, getStatusSince, submitEvidence } from '@/features/avus/avuService'
 import { logAvuAccessOnce } from '@/services/auditLogService'
+import { downloadAvuLaudoPdf } from '@/features/reports/avuLaudoPdf'
 import { AvuStatusBadge } from '@/features/avus/components/AvuStatusBadge'
 import { SlaBadge } from '@/features/avus/components/SlaBadge'
 import { PriorityBadge } from '@/features/avus/components/PriorityBadge'
@@ -59,6 +60,7 @@ export function AvuDetailPage() {
   const { user, roles, isAdmin, hasPermission } = useAuth()
   const [tab, setTab] = useState<TabKey>('resumo')
   const [evidenceNote, setEvidenceNote] = useState('')
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false)
 
   const deleteDialog = useDisclosure()
   const evidenceDialog = useDisclosure()
@@ -98,6 +100,17 @@ export function AvuDetailPage() {
     onError: (error) => show({ tone: 'error', title: 'Erro ao enviar evidência', description: String(error) }),
   })
 
+  async function handleGenerateReport() {
+    if (!id) return
+    setIsGeneratingReport(true)
+    try {
+      await downloadAvuLaudoPdf(id)
+    } catch (error) {
+      show({ tone: 'error', title: 'Falha ao gerar relatório', description: String(error) })
+    }
+    setIsGeneratingReport(false)
+  }
+
   if (avuQuery.isLoading) return <LoadingState />
   if (!avuQuery.data) {
     return <EmptyState title="AVU não encontrada" description="Verifique se o link está correto." />
@@ -122,6 +135,10 @@ export function AvuDetailPage() {
         description={avu.descricao}
         actions={
           <>
+            <Button variant="outline" isLoading={isGeneratingReport} onClick={handleGenerateReport}>
+              <FileText className="size-4" />
+              Relatório PDF
+            </Button>
             {canEdit && (
               <Button variant="outline" onClick={() => navigate(`${ROUTES.avus}/${avu.id}/editar`)}>
                 <Pencil className="size-4" />

@@ -62,11 +62,13 @@ Nenhuma tabela nova — tudo em cima de `audit_logs`/`notifications` já existen
 
 Ver `docs/database.md` (migration `0010`), `docs/architecture.md` ("Governança/Rastreabilidade") e `docs/testing.md`.
 
-## Sprint 11 — Relatórios / PDF
+## Sprint 11 — Relatórios / PDF (concluída)
 
-- Escolher e implementar a geração de PDF (`@react-pdf/renderer` vs. Edge Function + Puppeteer — ver `docs/architecture.md`).
-- Exportação de laudos de fiscalização e relatórios gerenciais a partir dos dados de `avus`/`audit_logs` já existentes.
-- Exportação Excel dos mesmos relatórios.
+Dois relatórios, ambos 100% client-side via `@react-pdf/renderer` (PDF) e `exceljs` (Excel, já instalado desde a Sprint 9) — sem Edge Function, sem tabela nova:
+- **Laudo por AVU** (`src/features/reports/`, botão "Relatório PDF" no detalhe da AVU): Número/Descrição/Fotos antes (`avu_attachments`)/Fotos depois (`avu_evidences`)/Data de criação/conclusão/Responsável/OM/Nota SAP/Conclusão (última decisão de fiscalização, com fallback pro status atual).
+- **Relatório gerencial em lote** (`pages/ReportsPage.tsx`, reescrita — antes era o placeholder da Sprint 0): reaproveita `AvuFiltersBar`/`listAvus()` já existentes, exporta PDF (tabular, paisagem) e Excel do conjunto filtrado.
+
+Sem permissão nova em `/relatorios` — a segurança já vem da RLS nas mesmas tabelas que o resto do app usa. Ver `docs/architecture.md` ("Relatórios — laudo por AVU + exportação em lote") e `docs/testing.md`.
 
 ## Depois
 

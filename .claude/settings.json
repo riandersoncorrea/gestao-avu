@@ -1,4 +1,12 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(sed -n '/Importação de PDF/,/^## /p' docs/architecture.md | head -150)"
+    ],
+    "additionalDirectories": [
+      "/Users/rianderson/Documents/Projetos/AVU/docs"
+    ]
+  },
   "hooks": {
     "Stop": [
       {

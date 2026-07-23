@@ -37,7 +37,19 @@ export const MAP_STYLES: MapStyleOption[] = [
   {
     id: 'padrao',
     label: 'Padrão',
-    styleUrl: 'https://demotiles.maplibre.org/style.json',
+    // Causa raiz do bug "Light sem nomes de rua" (ver docs/testing.md): isto era
+    // `https://demotiles.maplibre.org/style.json` — o style de DEMONSTRAÇÃO oficial do
+    // MapLibre, com cobertura de dados esparsa e sem labels de rua/logradouro na prática.
+    // Não é um basemap de produção, é uma amostra de teste. O style "escuro" ao lado
+    // sempre teve labels porque usa tiles raster completos do CARTO (Dark Matter, com
+    // texto já desenhado no próprio raster) — produtos diferentes, não uma diferença de
+    // configuração de camada/zoom. Trocado pelo equivalente claro da mesma família CARTO
+    // (Positron/"light_all") — mesmo provedor, mesmo esquema de tiles, mesma licença, sem
+    // API key nova — pra ter paridade real de labels com o Escuro.
+    styleUrl: rasterStyle(
+      ['https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'],
+      '© OpenStreetMap contributors © CARTO',
+    ),
     available: true,
   },
   {

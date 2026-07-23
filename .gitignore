@@ -33,6 +33,9 @@ dist-ssr
 *.sln
 *.sw?
 
+CLAUDE.md
+README.md
+
 # Supabase CLI local cache (link do projeto, versões, pooler URL) — estado da máquina, não
 # do projeto; nunca deveria estar num repositório público (revela endpoint/usuário do pooler).
 supabase/.temp/

@@ -43,23 +43,27 @@ export function DashboardFiltersBar({ filters, onChange }: DashboardFiltersBarPr
             alto — como os campos de data têm `label` (mais altos) e os Selects ao lado não,
             isso deixava os Selects "esticados" com espaço vazio embaixo. */}
         <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <div className="flex gap-2 lg:col-span-2">
-            {/* `label` visível em vez de só `aria-label`: em navegadores móveis (Safari iOS),
-                um <input type="date"> vazio não mostra nenhuma dica de formato como no
-                desktop — sem um rótulo visível, o campo aparece em branco e sem contexto. */}
-            <Input
-              type="date"
-              label="Período — início"
-              value={filters.periodoInicio}
-              onChange={(event) => set('periodoInicio', event.target.value)}
-            />
-            <Input
-              type="date"
-              label="Período — fim"
-              value={filters.periodoFim}
-              onChange={(event) => set('periodoFim', event.target.value)}
-            />
-          </div>
+          {/* Cada data na própria célula de grid (não dividindo uma via `flex`) — mesmo padrão
+              já usado em PlanningFiltersBar/AvuFiltersBar. Um `<div className="flex">` com as
+              duas datas força elas a ficarem lado a lado sempre, mesmo em `grid-cols-1` no
+              celular, onde todo o resto do formulário vira uma coluna só — ficavam espremidas
+              (confirmado num iPhone real; a emulação de mobile no desktop não pegou isso).
+              `label` visível em vez de só `aria-label`: em navegadores móveis (Safari iOS), um
+              <input type="date"> vazio não mostra nenhuma dica de formato como no desktop. */}
+          <Input
+            type="date"
+            label="Período — início"
+            value={filters.periodoInicio}
+            onChange={(event) => set('periodoInicio', event.target.value)}
+            className="min-w-0"
+          />
+          <Input
+            type="date"
+            label="Período — fim"
+            value={filters.periodoFim}
+            onChange={(event) => set('periodoFim', event.target.value)}
+            className="min-w-0"
+          />
           <Select
             placeholder="Status"
             value={filters.status}

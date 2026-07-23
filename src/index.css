@@ -109,3 +109,19 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* `<input type="date">` em navegadores móveis reais (confirmado em iPhone/Safari iOS —
+   não reproduz no modo responsivo do DevTools desktop, que usa outra implementação do
+   controle nativo) pode ultrapassar a largura do container pai mesmo com `width: 100%`
+   no próprio elemento: o problema não é o `<input>` em si, é o item de grid/flex ao redor
+   dele herdando `min-width: auto` do CSS Grid/Flexbox (a coluna trava no tamanho mínimo do
+   conteúdo formatado + ícone de calendário nativo). O componente `Input` já reseta isso no
+   próprio wrapper (ver components/Input.tsx) — esta regra é uma rede de segurança global,
+   pega qualquer <input type="date"> do app (mesmo fora do componente compartilhado) e
+   garante que ele nunca ultrapasse o pai, sem remover o ícone/seletor nativo (não usa
+   `-webkit-appearance`, que descaracterizaria o controle) e sem `overflow: hidden`. */
+input[type='date'] {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}

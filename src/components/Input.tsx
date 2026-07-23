@@ -32,7 +32,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           aria-invalid={Boolean(error)}
           aria-describedby={error ? `${inputId}-error` : hint ? `${inputId}-hint` : undefined}
           className={cn(
-            'h-10 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm text-graphite-800',
+            // `min-w-0 max-w-full box-border`: reforço explícito no próprio <input> (além do
+            // `min-w-0` no wrapper acima) — cobre o caso de `type="date"` em navegadores móveis
+            // reais, onde o controle nativo pode carregar seu próprio piso de largura mínima
+            // (ver index.css, regra global `input[type='date']`, para o detalhe completo).
+            'h-10 w-full min-w-0 max-w-full box-border rounded-xl border border-gray-300 bg-white px-3 text-sm text-graphite-800',
             'placeholder:text-gray-400',
             'focus:border-primary-500 focus:outline focus:outline-2 focus:outline-primary-100',
             'disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400',

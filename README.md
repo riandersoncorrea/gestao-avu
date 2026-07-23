@@ -32,6 +32,8 @@ npm run dev
 
 Publicado automaticamente no GitHub Pages a cada push em `main` (`.github/workflows/deploy.yml`), usando `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`/`VITE_MAPTILER_KEY` como Secrets do repositório (Settings → Secrets and variables → Actions). Ver [`docs/deployment.md`](./docs/deployment.md) para a configuração completa (Secrets exigidos, Settings → Pages, etc.).
 
+**Repositório privado**: GitHub Pages em repositório privado exige plano GitHub Pro/Team/Enterprise (não funciona no Free) — ver [`docs/deployment.md`](./docs/deployment.md#repositório-privado--github-pages) antes de trocar a visibilidade.
+
 ## Documentação
 
 - [`docs/architecture.md`](./docs/architecture.md) — arquitetura, stack e decisões técnicas

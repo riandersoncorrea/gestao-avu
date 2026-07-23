@@ -13,7 +13,14 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     const inputId = id ?? generatedId
 
     return (
-      <div className="flex flex-col gap-1.5">
+      // `min-w-0`: sem isso, dentro de um CSS Grid/flex este wrapper (o item filho
+      // direto do grid) herda `min-width: auto` — trava a coluna no tamanho mínimo do
+      // conteúdo do <input>. Para `type="date"` isso só aparece com um valor preenchido
+      // (o texto formatado + o ícone nativo do calendário força uma largura mínima maior),
+      // e no Safari iOS isso empurra o campo pra fora do container. Confirmado num iPhone
+      // real — não aparecia no Chrome desktop (onde o <input type="date"> tem outro
+      // comportamento de min-width nativo).
+      <div className="flex min-w-0 flex-col gap-1.5">
         {label && (
           <label htmlFor={inputId} className="text-sm font-medium text-graphite-700">
             {label}

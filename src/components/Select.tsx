@@ -20,7 +20,9 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     const selectId = id ?? generatedId
 
     return (
-      <div className="flex flex-col gap-1.5">
+      // `min-w-0`: mesmo motivo do Input.tsx — sem isso este wrapper (item filho direto
+      // do grid) trava a coluna no tamanho mínimo do conteúdo.
+      <div className="flex min-w-0 flex-col gap-1.5">
         {label && (
           <label htmlFor={selectId} className="text-sm font-medium text-graphite-700">
             {label}

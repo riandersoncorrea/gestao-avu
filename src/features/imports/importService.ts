@@ -10,6 +10,8 @@ interface RawAvuImportRow {
   status: AvuImportStatus
   original_file_name: string
   staging_path: string
+  staging_image_paths: string[] | null
+  image_count: number | null
   extracted_fields: ExtractedFields | null
   categoria_sugerida: string | null
   subcategoria_sugerida: string | null
@@ -29,6 +31,8 @@ function fromRow(row: RawAvuImportRow): AvuImport {
     status: row.status,
     originalFileName: row.original_file_name,
     stagingPath: row.staging_path,
+    stagingImagePaths: row.staging_image_paths ?? [],
+    imageCount: row.image_count ?? 0,
     extractedFields: row.extracted_fields,
     categoriaSugerida: row.categoria_sugerida,
     subcategoriaSugerida: row.subcategoria_sugerida,
@@ -43,7 +47,7 @@ function fromRow(row: RawAvuImportRow): AvuImport {
 }
 
 const SELECT_COLUMNS =
-  'id, avu_id, status, original_file_name, staging_path, extracted_fields, categoria_sugerida, subcategoria_sugerida, confianca, error_message, created_by, reviewed_by, reviewed_at, created_at, updated_at'
+  'id, avu_id, status, original_file_name, staging_path, staging_image_paths, image_count, extracted_fields, categoria_sugerida, subcategoria_sugerida, confianca, error_message, created_by, reviewed_by, reviewed_at, created_at, updated_at'
 
 export async function listImports(): Promise<AvuImport[]> {
   const { data, error } = await supabase
@@ -155,4 +159,12 @@ export async function getStagingPdfUrl(stagingPath: string): Promise<string> {
   const { data, error } = await supabase.storage.from(STAGING_BUCKET).createSignedUrl(stagingPath, 60 * 10)
   if (error) throw error
   return data.signedUrl
+}
+
+/** Miniaturas das imagens extraídas do PDF, enquanto ainda estão no staging (antes da confirmação). */
+export async function getStagingImageUrls(stagingImagePaths: string[]): Promise<string[]> {
+  if (stagingImagePaths.length === 0) return []
+  const { data, error } = await supabase.storage.from(STAGING_BUCKET).createSignedUrls(stagingImagePaths, 60 * 10)
+  if (error) throw error
+  return data.map((entry) => entry.signedUrl).filter((url): url is string => Boolean(url))
 }

@@ -14,7 +14,7 @@ import { useToast } from '@/components/Toast'
 import { ROUTES } from '@/lib/routes'
 import { cn } from '@/lib/utils'
 import { listProfileOptions } from '@/services/profileService'
-import { confirmImport, getImport, getStagingPdfUrl, listImportLogs } from '@/features/imports/importService'
+import { confirmImport, getImport, getStagingImageUrls, getStagingPdfUrl, listImportLogs } from '@/features/imports/importService'
 import { AvuImportStatusBadge } from '@/features/imports/components/AvuImportStatusBadge'
 import { AVU_IMPORT_CATEGORIES, AVU_IMPORT_SUBCATEGORIES, type AvuImportCategoria } from '@/features/imports/taxonomy'
 import type { ExtractedFields } from '@/features/imports/types'
@@ -58,10 +58,15 @@ export function ImportReviewPage() {
     queryFn: () => getStagingPdfUrl(importQuery.data!.stagingPath),
     enabled: Boolean(importQuery.data) && !importQuery.data?.avuId,
   })
+  const imageUrlsQuery = useQuery({
+    queryKey: ['avu-imports', id, 'image-urls', importQuery.data?.stagingImagePaths],
+    queryFn: () => getStagingImageUrls(importQuery.data!.stagingImagePaths),
+    enabled: Boolean(importQuery.data) && !importQuery.data?.avuId && (importQuery.data?.stagingImagePaths.length ?? 0) > 0,
+  })
 
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [categoria, setCategoria] = useState<AvuImportCategoria>('OUTROS')
-  const [subcategoria, setSubcategoria] = useState('Geral')
+  const [subcategoria, setSubcategoria] = useState('Outros')
   const [showLogs, setShowLogs] = useState(false)
 
   useEffect(() => {
@@ -191,6 +196,24 @@ export function ImportReviewPage() {
               >
                 {avuImport.confianca !== null ? `${avuImport.confianca}%` : '—'}
               </span>
+            </div>
+
+            <div>
+              <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                {avuImport.imageCount} imagem(ns) encontrada(s)
+              </span>
+              {avuImport.imageCount > 0 && (
+                <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  {(imageUrlsQuery.data ?? []).map((url, index) => (
+                    <a key={url} href={url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-gray-200">
+                      <img src={url} alt={`Imagem extraída ${index + 1}`} className="aspect-square w-full object-cover" />
+                    </a>
+                  ))}
+                  {imageUrlsQuery.isLoading && (
+                    <div className="col-span-full text-sm text-gray-400">Carregando miniaturas...</div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

@@ -33,29 +33,35 @@ const RULES: CategoryRule[] = [
   {
     categoria: 'ÁREAS VERDES',
     subcategorias: [
+      { nome: 'Roço', keywords: ['roço', 'roçagem', 'roçada', 'roçar'] },
+      { nome: 'Capina', keywords: ['capina', 'capinação', 'capinar'] },
       { nome: 'Poda', keywords: ['poda', 'podar', 'galho'] },
-      { nome: 'Jardinagem', keywords: ['jardim', 'grama', 'gramado', 'canteiro', 'muda'] },
-      { nome: 'Remoção de árvore', keywords: ['remoção de árvore', 'remocao de arvore', 'árvore caída', 'arvore caida'] },
-      { nome: 'Outros', keywords: ['árvore', 'arvore', 'vegetação', 'vegetacao'] },
+      { nome: 'Árvores', keywords: ['árvore', 'arvore', 'árvores', 'arvores', 'tronco'] },
+      { nome: 'Supressão Vegetal', keywords: ['supressão vegetal', 'supressao vegetal', 'remoção de árvore', 'remocao de arvore'] },
+      { nome: 'Mato', keywords: ['mato', 'matagal'] },
+      { nome: 'Vegetação', keywords: ['vegetação', 'vegetacao', 'vegetação alta', 'vegetacao alta'] },
+      { nome: 'Outros', keywords: ['jardim', 'grama', 'gramado', 'canteiro', 'muda'] },
     ],
   },
   {
     categoria: 'MANUTENÇÃO',
     subcategorias: [
-      { nome: 'Estrutural', keywords: ['estrutura', 'estrutural', 'trinca', 'rachadura', 'corrosão', 'corrosao'] },
-      { nome: 'Hidráulica', keywords: ['vazamento', 'hidráulica', 'hidraulica', 'tubulação', 'tubulacao', 'entupimento'] },
-      { nome: 'Elétrica', keywords: ['elétrica', 'eletrica', 'fiação', 'fiacao', 'curto-circuito', 'quadro elétrico', 'quadro eletrico'] },
-      { nome: 'Civil', keywords: ['piso', 'parede', 'concreto', 'alvenaria', 'pintura'] },
-      { nome: 'Outros', keywords: ['manutenção', 'manutencao', 'reparo'] },
+      { nome: 'Muros', keywords: ['muro', 'muros', 'alvenaria'] },
+      { nome: 'Cercas', keywords: ['cerca', 'cercas', 'cercamento', 'alambrado'] },
+      { nome: 'Concertina', keywords: ['concertina', 'arame farpado'] },
+      { nome: 'Portões', keywords: ['portão', 'portao', 'portões', 'portoes', 'cancela'] },
+      { nome: 'Outros', keywords: ['manutenção', 'manutencao', 'reparo', 'estrutura', 'estrutural'] },
     ],
   },
   {
     categoria: 'ILUMINAÇÃO',
     subcategorias: [
       { nome: 'Poste', keywords: ['poste'] },
+      { nome: 'Luminária', keywords: ['luminária', 'luminaria', 'lâmpada', 'lampada'] },
       { nome: 'Refletor', keywords: ['refletor', 'holofote'] },
-      { nome: 'Rede elétrica', keywords: ['rede elétrica de iluminação', 'rede eletrica de iluminacao', 'cabo de energia'] },
-      { nome: 'Outros', keywords: ['lâmpada', 'lampada', 'iluminação', 'iluminacao', 'luminária', 'luminaria'] },
+      { nome: 'Fotocélula', keywords: ['fotocélula', 'fotocelula', 'relé fotoelétrico', 'rele fotoeletrico'] },
+      { nome: 'Cabo', keywords: ['cabo de energia', 'cabo elétrico', 'cabo eletrico', 'fiação', 'fiacao'] },
+      { nome: 'Outros', keywords: ['iluminação', 'iluminacao'] },
     ],
   },
 ]
@@ -74,7 +80,7 @@ export function classifyDescricao(descricao: string): ClassificationResult {
   }
 
   if (!best) {
-    return { categoria: 'OUTROS', subcategoria: 'Geral', confianca: FALLBACK_CONFIDENCE }
+    return { categoria: 'OUTROS', subcategoria: 'Outros', confianca: FALLBACK_CONFIDENCE }
   }
 
   const confianca = Math.min(HEURISTIC_MAX_CONFIDENCE, HEURISTIC_BASE_CONFIDENCE + best.hits * HEURISTIC_CONFIDENCE_PER_HIT)

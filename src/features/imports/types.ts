@@ -23,6 +23,8 @@ export interface AvuImport {
   status: AvuImportStatus
   originalFileName: string
   stagingPath: string
+  stagingImagePaths: string[]
+  imageCount: number
   extractedFields: ExtractedFields | null
   categoriaSugerida: string | null
   subcategoriaSugerida: string | null

@@ -1,9 +1,10 @@
 // Edge Function: process-avu-import
 //
-// Roda o pipeline PDF → OCR → Extração de texto → Extração de campos →
-// Extração de imagens → Classificação IA → Validação → Criação do AVU.
-// É a única peça deste projeto que pode segurar chaves de IA com segurança
-// (nunca no frontend) — ver docs/architecture.md e o README desta pasta.
+// Roda o pipeline PDF → extração de texto (com fallback de OCR) → extração
+// de campos → extração de imagens → classificação IA → validação → criação
+// do AVU. É a única peça deste projeto que pode segurar chaves de IA/OCR com
+// segurança (nunca no frontend) — ver docs/architecture.md e o README desta
+// pasta.
 //
 // Modos (`action` no corpo da requisição):
 //  - omitido/'process': roda o pipeline completo pra uma importação em
@@ -21,13 +22,21 @@
 
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import { extractAvuFields, type ExtractedFields } from './lib/extractFields.ts'
-import { extractPdfText, extractPdfImages, type ExtractedImage } from './lib/pdf.ts'
+import { extractPdfContent, type ExtractedImage } from './lib/pdf.ts'
+import { getOcrProvider } from './lib/ocr.ts'
 import { getAIProvider } from './lib/aiProviders.ts'
 import type { ClassificationResult } from './lib/classify.ts'
 
 const STAGING_BUCKET = 'avu-import-staging'
 const ATTACHMENTS_BUCKET = 'avu-attachments'
 const CONFIDENCE_THRESHOLD = 80
+// Abaixo deste tanto de caracteres extraídos, tratamos o PDF como "sem texto
+// digital suficiente" (provavelmente escaneado/fotografado) e acionamos OCR
+// em vez de seguir com um texto vazio/quase vazio — o modelo padrão real
+// (validado, ver docs/testing.md) tem mais de 2000 caracteres de texto
+// nativo, então uma margem de 100 é folgada o bastante pra não disparar OCR
+// à toa num PDF digital válido, mas curto.
+const MIN_DIGITAL_TEXT_LENGTH = 100
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
@@ -36,6 +45,7 @@ interface AvuImportRow {
   id: string
   staging_path: string
   original_file_name: string
+  staging_image_paths: string[]
 }
 
 interface ProcessRequestBody {
@@ -124,7 +134,7 @@ async function getAuthUserId(supabase: SupabaseClient): Promise<string> {
 async function fetchImportRow(supabase: SupabaseClient, importId: string): Promise<AvuImportRow> {
   const { data, error } = await supabase
     .from('avu_imports')
-    .select('id, staging_path, original_file_name')
+    .select('id, staging_path, original_file_name, staging_image_paths')
     .eq('id', importId)
     .single()
 
@@ -147,16 +157,46 @@ async function processImport(supabase: SupabaseClient, importId: string): Promis
 
     const pdfBytes = new Uint8Array(await fileData.arrayBuffer())
 
-    // OCR + Extração de texto (uma só chamada — texto nativo, PDF não escaneado).
+    // Extração de texto + imagens (uma única abertura do PDF — ver
+    // pdf.ts sobre por que abrir duas vezes quebra).
     let rawText: string
+    let images: Awaited<ReturnType<typeof extractPdfContent>>['images']
     try {
-      rawText = await extractPdfText(pdfBytes)
+      const content = await extractPdfContent(pdfBytes)
+      rawText = content.text
+      images = content.images
+      if (content.imageWarnings.length > 0) {
+        await log(supabase, importId, 'EXTRACAO_IMAGENS', 'SUCESSO', content.imageWarnings.join(' | '))
+      }
     } catch (error) {
-      await log(supabase, importId, 'OCR', 'ERRO', String(error))
-      throw new Error('Não foi possível ler o texto do PDF — pode estar corrompido ou ser uma imagem escaneada')
+      await log(supabase, importId, 'EXTRACAO_TEXTO', 'ERRO', String(error))
+      throw new Error('Não foi possível ler o PDF — pode estar corrompido')
     }
-    await log(supabase, importId, 'OCR', 'SUCESSO', `${rawText.length} caracteres extraídos`)
-    await log(supabase, importId, 'EXTRACAO_TEXTO', 'SUCESSO', null)
+
+    // Estratégia de texto: tenta o texto digital primeiro; só recorre a OCR
+    // se o PDF não tiver texto digital suficiente (provavelmente
+    // escaneado/fotografado) — nunca gasta OCR à toa num PDF que já tem
+    // texto nativo (ver MIN_DIGITAL_TEXT_LENGTH).
+    if (rawText.trim().length < MIN_DIGITAL_TEXT_LENGTH) {
+      await log(
+        supabase,
+        importId,
+        'EXTRACAO_TEXTO',
+        'SUCESSO',
+        `Apenas ${rawText.trim().length} caractere(s) de texto digital — abaixo do mínimo, tentando OCR`,
+      )
+      await log(supabase, importId, 'OCR', 'INICIADO', 'PDF sem texto digital suficiente — acionando OCR')
+      try {
+        const ocrText = await getOcrProvider().recognize(pdfBytes)
+        await log(supabase, importId, 'OCR', 'SUCESSO', `${ocrText.length} caractere(s) reconhecidos via OCR`)
+        rawText = ocrText
+      } catch (error) {
+        await log(supabase, importId, 'OCR', 'ERRO', String(error))
+        throw new Error(String(error))
+      }
+    } else {
+      await log(supabase, importId, 'EXTRACAO_TEXTO', 'SUCESSO', `${rawText.length} caracteres extraídos do texto digital do PDF`)
+    }
 
     // Extração de campos
     const fields = extractAvuFields(rawText)
@@ -171,14 +211,18 @@ async function processImport(supabase: SupabaseClient, importId: string): Promis
 
     const emitenteId = await resolveEmitenteId(supabase, fields.emitenteNome)
 
-    // Extração de imagens (melhor esforço — nunca derruba o pipeline)
-    const { images, warnings: imageWarnings } = await extractPdfImages(pdfBytes)
+    // Sobe as imagens extraídas pro bucket de staging já nesta passada
+    // (mesmo antes de saber se vai automático ou pra revisão humana) — é o
+    // que permite a tela de revisão mostrar miniaturas/contagem antes da
+    // confirmação, sem precisar reabrir o PDF depois.
+    const { stagingImagePaths, uploadWarnings } = await stageExtractedImages(supabase, importId, images)
     await log(
       supabase,
       importId,
       'EXTRACAO_IMAGENS',
-      'SUCESSO',
-      imageWarnings.length > 0 ? imageWarnings.join(' | ') : `${images.length} imagem(ns) extraída(s)`,
+      uploadWarnings.length > 0 ? 'ERRO' : 'SUCESSO',
+      `${stagingImagePaths.length} de ${images.length} imagem(ns) extraída(s) enviada(s) para o staging` +
+        (uploadWarnings.length > 0 ? ` | ${uploadWarnings.join(' | ')}` : ''),
     )
 
     // Classificação IA
@@ -200,6 +244,8 @@ async function processImport(supabase: SupabaseClient, importId: string): Promis
         categoria_sugerida: classification.categoria,
         subcategoria_sugerida: classification.subcategoria,
         confianca: classification.confianca,
+        staging_image_paths: stagingImagePaths,
+        image_count: stagingImagePaths.length,
       })
       .eq('id', importId)
 
@@ -229,7 +275,7 @@ async function processImport(supabase: SupabaseClient, importId: string): Promis
     })
     if (rpcError) throw new Error(rpcError.message)
 
-    await copyStagingToAttachments(supabase, importRow, avuId as string, images)
+    await copyStagingToAttachments(supabase, { ...importRow, staging_image_paths: stagingImagePaths }, avuId as string)
   } catch (error) {
     await supabase.from('avu_imports').update({ status: 'ERRO', error_message: String(error) }).eq('id', importId)
     throw error
@@ -247,10 +293,10 @@ async function confirmImport(supabase: SupabaseClient, body: ConfirmRequestBody)
   })
   if (rpcError) throw new Error(rpcError.message)
 
-  const { data: fileData } = await supabase.storage.from(STAGING_BUCKET).download(importRow.staging_path)
-  const images = fileData ? (await extractPdfImages(new Uint8Array(await fileData.arrayBuffer()))).images : []
-
-  await copyStagingToAttachments(supabase, importRow, avuId as string, images)
+  // As imagens já foram extraídas e enviadas pro staging durante
+  // `processImport` (é assim que a tela de revisão mostrou as miniaturas) —
+  // não precisa reabrir/reprocessar o PDF aqui.
+  await copyStagingToAttachments(supabase, importRow, avuId as string)
 
   return avuId as string
 }
@@ -262,17 +308,38 @@ async function resolveEmitenteId(supabase: SupabaseClient, emitenteNome: string 
 }
 
 async function classify(descricao: ExtractedFields['descricao']): Promise<ClassificationResult> {
-  if (!descricao) return { categoria: 'OUTROS', subcategoria: 'Geral', confianca: 0 }
+  if (!descricao) return { categoria: 'OUTROS', subcategoria: 'Outros', confianca: 0 }
   const provider = getAIProvider()
   return provider.classify(descricao)
 }
 
-async function copyStagingToAttachments(
+/** Sobe cada imagem extraída pro bucket de staging (mesmo bucket do PDF original) e devolve os paths. */
+async function stageExtractedImages(
   supabase: SupabaseClient,
-  importRow: AvuImportRow,
-  avuId: string,
+  importId: string,
   images: ExtractedImage[],
-): Promise<void> {
+): Promise<{ stagingImagePaths: string[]; uploadWarnings: string[] }> {
+  const stagingImagePaths: string[] = []
+  const uploadWarnings: string[] = []
+
+  for (const image of images) {
+    const extension = image.mimeType === 'image/png' ? 'png' : 'jpg'
+    const path = `${importId}/imagem-${image.index + 1}.${extension}`
+    const { error } = await supabase.storage.from(STAGING_BUCKET).upload(path, image.bytes, {
+      contentType: image.mimeType,
+      upsert: true,
+    })
+    if (error) {
+      uploadWarnings.push(`Falha ao enviar imagem ${image.index + 1} para o staging: ${error.message}`)
+    } else {
+      stagingImagePaths.push(path)
+    }
+  }
+
+  return { stagingImagePaths, uploadWarnings }
+}
+
+async function copyStagingToAttachments(supabase: SupabaseClient, importRow: AvuImportRow, avuId: string): Promise<void> {
   const uploadedBy = await getAuthUserId(supabase)
 
   const { data: pdfData } = await supabase.storage.from(STAGING_BUCKET).download(importRow.staging_path)
@@ -295,12 +362,15 @@ async function copyStagingToAttachments(
     }
   }
 
-  for (const image of images) {
-    const fileName = `imagem-${image.index + 1}.jpg`
+  for (const stagingImagePath of importRow.staging_image_paths ?? []) {
+    const { data: imageData } = await supabase.storage.from(STAGING_BUCKET).download(stagingImagePath)
+    if (!imageData) continue
+
+    const fileName = stagingImagePath.split('/').pop() ?? stagingImagePath
     const imagePath = `${avuId}/${crypto.randomUUID()}-${fileName}`
     const { error: uploadError } = await supabase.storage
       .from(ATTACHMENTS_BUCKET)
-      .upload(imagePath, image.bytes, { contentType: image.mimeType })
+      .upload(imagePath, imageData, { contentType: imageData.type || 'image/png' })
 
     if (!uploadError) {
       await supabase.from('avu_attachments').insert({
@@ -308,11 +378,13 @@ async function copyStagingToAttachments(
         kind: 'photo',
         file_path: imagePath,
         file_name: fileName,
-        mime_type: image.mimeType,
-        size_bytes: image.bytes.byteLength,
+        mime_type: imageData.type || 'image/png',
+        size_bytes: imageData.size,
         uploaded_by: uploadedBy,
       })
     }
+
+    await supabase.storage.from(STAGING_BUCKET).remove([stagingImagePath])
   }
 
   await supabase.storage.from(STAGING_BUCKET).remove([importRow.staging_path])

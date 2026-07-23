@@ -12,8 +12,8 @@ export const AVU_IMPORT_CATEGORIES = ['ÁREAS VERDES', 'MANUTENÇÃO', 'ILUMINA�
 export type AvuImportCategoria = (typeof AVU_IMPORT_CATEGORIES)[number]
 
 export const AVU_IMPORT_SUBCATEGORIES: Record<AvuImportCategoria, string[]> = {
-  'ÁREAS VERDES': ['Poda', 'Jardinagem', 'Remoção de árvore', 'Outros'],
-  MANUTENÇÃO: ['Estrutural', 'Hidráulica', 'Elétrica', 'Civil', 'Outros'],
-  ILUMINAÇÃO: ['Poste', 'Refletor', 'Rede elétrica', 'Outros'],
-  OUTROS: ['Geral'],
+  'ÁREAS VERDES': ['Roço', 'Capina', 'Poda', 'Árvores', 'Vegetação', 'Mato', 'Supressão Vegetal', 'Outros'],
+  MANUTENÇÃO: ['Muros', 'Cercas', 'Concertina', 'Portões', 'Outros'],
+  ILUMINAÇÃO: ['Poste', 'Luminária', 'Refletor', 'Fotocélula', 'Cabo', 'Outros'],
+  OUTROS: ['Outros'],
 }

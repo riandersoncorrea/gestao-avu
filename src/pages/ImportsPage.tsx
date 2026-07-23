@@ -10,7 +10,7 @@ import { DataTable, type DataTableColumn } from '@/components/DataTable'
 import { useToast } from '@/components/Toast'
 import { ROUTES } from '@/lib/routes'
 import { cn } from '@/lib/utils'
-import { listImports, processImport, retryImport, stageImport } from '@/features/imports/importService'
+import { getImport, listImports, processImport, retryImport, stageImport } from '@/features/imports/importService'
 import { AvuImportStatusBadge } from '@/features/imports/components/AvuImportStatusBadge'
 import type { AvuImport } from '@/features/imports/types'
 import { formatDateTime } from '@/utils/format'
@@ -61,10 +61,23 @@ export function ImportsPage() {
     invalidate()
 
     // Fase 2 — processamento sequencial: só um PROCESSANDO por vez, o resto espera em AGUARDANDO.
+    let sucesso = 0
+    let erro = 0
     for (const importId of staged) {
       if (!importId) continue
       await processImport(importId)
+      const result = await getImport(importId).catch(() => null)
+      if (result?.status === 'ERRO') erro += 1
+      else sucesso += 1
       invalidate()
+    }
+
+    if (files.length > 1) {
+      show({
+        tone: erro > 0 ? 'warning' : 'success',
+        title: 'Importação em lote concluída',
+        description: `${files.length} PDF(s) processado(s) — ${sucesso} sem falha, ${erro} com erro.`,
+      })
     }
 
     setIsUploading(false)

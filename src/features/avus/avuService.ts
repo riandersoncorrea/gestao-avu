@@ -15,7 +15,7 @@ import type {
 const AVU_SELECT = `
   id, numero_avu, data_criacao, gerencia_responsavel, data_limite, projeto, local,
   latitude, longitude, descricao, categoria, subcategoria, nivel_confianca_ia, status, prioridade,
-  empresa_executante, nota_sap, ordem_manutencao, created_at, updated_at,
+  empresa_executante, nota_sap, ordem_manutencao, created_at, updated_at, emitente_nome,
   emitente:profiles!avus_emitente_fkey(id, full_name),
   responsavel:profiles!avus_responsavel_fkey(id, full_name),
   fiscal:profiles!avus_fiscal_fkey(id, full_name)
@@ -49,6 +49,7 @@ interface RawAvuRow {
   created_at: string
   updated_at: string
   emitente: RawProfileRef | null
+  emitente_nome: string | null
   responsavel: RawProfileRef | null
   fiscal: RawProfileRef | null
 }
@@ -66,6 +67,7 @@ function fromRow(row: RawAvuRow): Avu {
     gerenciaResponsavel: row.gerencia_responsavel,
     dataLimite: row.data_limite,
     emitente: toProfileRef(row.emitente),
+    emitenteNome: row.emitente_nome,
     projeto: row.projeto,
     local: row.local,
     latitude: row.latitude,

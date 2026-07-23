@@ -28,6 +28,14 @@ export interface Avu {
   gerenciaResponsavel: string | null
   dataLimite: string | null
   emitente: AvuProfileRef | null
+  /**
+   * Nome do emitente em texto livre (ex.: extraído de PDF importado) —
+   * fallback quando `emitente` (FK) não está vinculado a um perfil
+   * cadastrado. Opcional: só `avuService.ts` (detalhe da AVU) seleciona essa
+   * coluna hoje — as views usadas por dashboard/planejamento/fiscalização
+   * não a expõem.
+   */
+  emitenteNome?: string | null
   projeto: string | null
   local: string | null
   latitude: number | null

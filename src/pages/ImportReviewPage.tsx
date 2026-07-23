@@ -13,7 +13,6 @@ import { EmptyState } from '@/components/EmptyState'
 import { useToast } from '@/components/Toast'
 import { ROUTES } from '@/lib/routes'
 import { cn } from '@/lib/utils'
-import { listProfileOptions } from '@/services/profileService'
 import { confirmImport, getImport, getStagingImageUrls, getStagingPdfUrl, listImportLogs } from '@/features/imports/importService'
 import { AvuImportStatusBadge } from '@/features/imports/components/AvuImportStatusBadge'
 import { AVU_IMPORT_CATEGORIES, AVU_IMPORT_SUBCATEGORIES, type AvuImportCategoria } from '@/features/imports/taxonomy'
@@ -24,7 +23,7 @@ interface FormState {
   dataCriacao: string
   gerenciaResponsavel: string
   dataLimite: string
-  emitenteId: string
+  emitenteNome: string
   projeto: string
   local: string
   latitude: string
@@ -37,7 +36,7 @@ const EMPTY_FORM: FormState = {
   dataCriacao: '',
   gerenciaResponsavel: '',
   dataLimite: '',
-  emitenteId: '',
+  emitenteNome: '',
   projeto: '',
   local: '',
   latitude: '',
@@ -52,7 +51,6 @@ export function ImportReviewPage() {
 
   const importQuery = useQuery({ queryKey: ['avu-imports', id], queryFn: () => getImport(id!), enabled: !!id })
   const logsQuery = useQuery({ queryKey: ['avu-imports', id, 'logs'], queryFn: () => listImportLogs(id!), enabled: !!id })
-  const profilesQuery = useQuery({ queryKey: ['profiles', 'options'], queryFn: listProfileOptions })
   const pdfUrlQuery = useQuery({
     queryKey: ['avu-imports', id, 'pdf-url'],
     queryFn: () => getStagingPdfUrl(importQuery.data!.stagingPath),
@@ -77,7 +75,7 @@ export function ImportReviewPage() {
       dataCriacao: fields.dataCriacao ?? '',
       gerenciaResponsavel: fields.gerenciaResponsavel ?? '',
       dataLimite: fields.dataLimite ?? '',
-      emitenteId: fields.emitenteId ?? '',
+      emitenteNome: fields.emitenteNome ?? '',
       projeto: fields.projeto ?? '',
       local: fields.local ?? '',
       latitude: fields.latitude?.toString() ?? '',
@@ -110,8 +108,14 @@ export function ImportReviewPage() {
         dataCriacao: form.dataCriacao || null,
         gerenciaResponsavel: form.gerenciaResponsavel || null,
         dataLimite: form.dataLimite || null,
-        emitenteNome: importQuery.data?.extractedFields?.emitenteNome ?? null,
-        emitenteId: form.emitenteId || null,
+        emitenteNome: form.emitenteNome || null,
+        // `emitenteId` nunca é editado nesta tela (não é mais um Select) — só
+        // passa adiante o que a Edge Function já tentou resolver sozinha
+        // (nome extraído batendo com exatamente um perfil cadastrado). O
+        // vínculo "oficial" com um usuário do sistema continua existindo
+        // quando bate; quando não bate, emitenteNome (texto livre) preserva
+        // o valor real do PDF de qualquer forma.
+        emitenteId: importQuery.data?.extractedFields?.emitenteId ?? null,
         projeto: form.projeto || null,
         local: form.local || null,
         latitude: form.latitude ? Number(form.latitude) : null,
@@ -132,7 +136,6 @@ export function ImportReviewPage() {
   if (!importQuery.data) return <EmptyState title="Importação não encontrada" />
 
   const avuImport = importQuery.data
-  const profileOptions = (profilesQuery.data ?? []).map((p) => ({ value: p.id, label: p.fullName }))
   const canEdit = avuImport.status === 'REVISAO_NECESSARIA'
   const canSubmit = canEdit && form.descricao.trim().length > 0 && !confirmMutation.isPending
 
@@ -243,13 +246,11 @@ export function ImportReviewPage() {
                 disabled={!canEdit}
                 onChange={(event) => setForm((f) => ({ ...f, dataLimite: event.target.value }))}
               />
-              <Select
+              <Input
                 label="Emitente"
-                placeholder="Selecione"
-                options={profileOptions}
-                value={form.emitenteId}
+                value={form.emitenteNome}
                 disabled={!canEdit}
-                onChange={(event) => setForm((f) => ({ ...f, emitenteId: event.target.value }))}
+                onChange={(event) => setForm((f) => ({ ...f, emitenteNome: event.target.value }))}
               />
               <Input
                 label="Projeto"

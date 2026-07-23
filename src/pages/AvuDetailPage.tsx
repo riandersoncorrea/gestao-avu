@@ -233,7 +233,7 @@ export function AvuDetailPage() {
       {tab === 'informacoes' && (
         <Card>
           <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Field label="Emitente" value={avu.emitente?.fullName} />
+            <Field label="Emitente" value={avu.emitente?.fullName ?? avu.emitenteNome ?? undefined} />
             <Field label="Projeto" value={avu.projeto} />
             <Field label="Subcategoria" value={avu.subcategoria} />
             <Field

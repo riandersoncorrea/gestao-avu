@@ -23,11 +23,16 @@ dist-ssr
 .idea
 .DS_Store
 
-# Claude Code local-machine settings/state (not shared)
-.claude/settings.local.json
-.claude/scheduled_tasks.lock
+# Claude Code local-machine settings/state (not shared) — a pasta inteira, não só os dois
+# arquivos que já estavam aqui: settings.json chegou a ser versionado com credenciais reais
+# de teste (ver auditoria de segurança) e não deveria nunca ter ido pro repositório público.
+.claude/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# Supabase CLI local cache (link do projeto, versões, pooler URL) — estado da máquina, não
+# do projeto; nunca deveria estar num repositório público (revela endpoint/usuário do pooler).
+supabase/.temp/
